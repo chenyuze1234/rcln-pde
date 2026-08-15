@@ -1,0 +1,46 @@
+{
+  "checkpoint": "checkpoints/v5_nc_p0/v5_best.pt",
+  "h5_path": "data_generated/tgv_re800_N64_T5.0_dt0.01.h5",
+  "ablation_mode": "full",
+  "noise_level": 0.0,
+  "num_ic": 3,
+  "max_K": 200,
+  "by_K": {
+    "10": {
+      "rel_l2_mean": 0.07658107082049052,
+      "rel_l2_std": 4.0908994521725195e-05,
+      "energy_ratio_mean": 1.0011148821635432,
+      "energy_ratio_std": 9.458781624254742e-05,
+      "crash_rate": 0.0,
+      "crash_step_mean": 10.0,
+      "n_ic": 3
+    },
+    "50": {
+      "rel_l2_mean": 0.19890442490577698,
+      "rel_l2_std": 0.0036179739477759858,
+      "energy_ratio_mean": 1.0006725264278427,
+      "energy_ratio_std": 0.00012128777814733116,
+      "crash_rate": 0.0,
+      "crash_step_mean": 50.0,
+      "n_ic": 3
+    },
+    "100": {
+      "rel_l2_mean": 0.41878153880437213,
+      "rel_l2_std": 0.003394378161185167,
+      "energy_ratio_mean": 1.0006609526288741,
+      "energy_ratio_std": 0.0001225286657635768,
+      "crash_rate": 0.0,
+      "crash_step_mean": 100.0,
+      "n_ic": 3
+    },
+    "200": {
+      "rel_l2_mean": 0.7696396907170614,
+      "rel_l2_std": 0.0026826227545997715,
+      "energy_ratio_mean": 1.0006606665273032,
+      "energy_ratio_std": 0.00012249690507276447,
+      "crash_rate": 0.0,
+      "crash_step_mean": 200.0,
+      "n_ic": 3
+    }
+  }
+}

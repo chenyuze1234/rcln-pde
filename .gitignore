@@ -1,0 +1,44 @@
+# Data and checkpoints (regenerate with data_generation/ and training/ scripts)
+*.h5
+*.hdf5
+*.npz
+# Figure-source arrays required by plotting/make_figures_nc.py are tracked on purpose:
+!results/paper_experiments/upi_maps.npz
+!results/paper_experiments/physics_diagnostics.npz
+*.npy
+*.pt
+*.pth
+*.ckpt
+checkpoints/
+data/
+data_generated/
+data_generated*/
+!data_generation/
+
+# Secrets
+jhtdb_token.txt
+*.env
+.env
+
+# Windows launch scripts
+*.bat
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+
+# Archives / scratch
+archive/
+legacy/
+tmp_vnc/
+_attic/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+
+# Generated figures (rebuild with plotting/make_figures_nc.py)
+paper_v6/figures/

@@ -1,0 +1,73 @@
+{
+  "checkpoint": "checkpoints/v5_nc_p0/v5_best.pt",
+  "h5_path": "data_generated/tgv_re6400_N64_T20.0_fluidsim.h5",
+  "ablation_mode": "full",
+  "noise_level": 0.0,
+  "num_ic": 5,
+  "max_K": 500,
+  "by_K": {
+    "10": {
+      "rel_l2_mean": 0.09633996337652206,
+      "rel_l2_std": 0.00018400055686997762,
+      "energy_ratio_mean": 0.8491590160964121,
+      "energy_ratio_std": 9.90604050868236e-05,
+      "crash_rate": 0.0,
+      "crash_step_mean": 10.0,
+      "n_ic": 5
+    },
+    "50": {
+      "rel_l2_mean": 0.10233520716428757,
+      "rel_l2_std": 0.0006812811347599716,
+      "energy_ratio_mean": 0.8403103413851587,
+      "energy_ratio_std": 0.0004975631878777754,
+      "crash_rate": 0.0,
+      "crash_step_mean": 50.0,
+      "n_ic": 5
+    },
+    "100": {
+      "rel_l2_mean": 0.17301078736782075,
+      "rel_l2_std": 0.010609351792225325,
+      "energy_ratio_mean": 0.8237070667761179,
+      "energy_ratio_std": 3.0346622209653386e-05,
+      "crash_rate": 0.0,
+      "crash_step_mean": 100.0,
+      "n_ic": 5
+    },
+    "200": {
+      "rel_l2_mean": 0.8187396287918091,
+      "rel_l2_std": 0.005263982000176634,
+      "energy_ratio_mean": 0.8235890036829965,
+      "energy_ratio_std": 5.372866434225757e-05,
+      "crash_rate": 0.0,
+      "crash_step_mean": 200.0,
+      "n_ic": 5
+    },
+    "300": {
+      "rel_l2_mean": 1.0758986949920655,
+      "rel_l2_std": 0.0024872461424032917,
+      "energy_ratio_mean": 0.8235888852552231,
+      "energy_ratio_std": 5.360796780188672e-05,
+      "crash_rate": 1.0,
+      "crash_step_mean": 255.0,
+      "n_ic": 5
+    },
+    "400": {
+      "rel_l2_mean": 1.2586389064788819,
+      "rel_l2_std": 0.0024369179150411035,
+      "energy_ratio_mean": 0.8235889905301006,
+      "energy_ratio_std": 5.380439520899235e-05,
+      "crash_rate": 1.0,
+      "crash_step_mean": 255.0,
+      "n_ic": 5
+    },
+    "500": {
+      "rel_l2_mean": 1.466962957382202,
+      "rel_l2_std": 0.002977957510100931,
+      "energy_ratio_mean": 0.8235888720871702,
+      "energy_ratio_std": 5.3449144521274216e-05,
+      "crash_rate": 1.0,
+      "crash_step_mean": 255.0,
+      "n_ic": 5
+    }
+  }
+}

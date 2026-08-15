@@ -1,0 +1,46 @@
+{
+  "checkpoint": "checkpoints/v5_nc_p0/v5_best.pt",
+  "h5_path": "data_generated/tgv_re400_N64_T5.0_dt0.01.h5",
+  "ablation_mode": "full",
+  "noise_level": 0.0,
+  "num_ic": 3,
+  "max_K": 200,
+  "by_K": {
+    "10": {
+      "rel_l2_mean": 0.07664664338032405,
+      "rel_l2_std": 4.2945216074087296e-05,
+      "energy_ratio_mean": 0.9806095205138127,
+      "energy_ratio_std": 0.0002127901555004746,
+      "crash_rate": 0.0,
+      "crash_step_mean": 10.0,
+      "n_ic": 3
+    },
+    "50": {
+      "rel_l2_mean": 0.19702284038066864,
+      "rel_l2_std": 0.003566914963209156,
+      "energy_ratio_mean": 0.9801758720124231,
+      "energy_ratio_std": 0.0002391417665566127,
+      "crash_rate": 0.0,
+      "crash_step_mean": 50.0,
+      "n_ic": 3
+    },
+    "100": {
+      "rel_l2_mean": 0.41343029340108234,
+      "rel_l2_std": 0.003331610009745974,
+      "energy_ratio_mean": 0.9801648411157063,
+      "energy_ratio_std": 0.00024026229196450488,
+      "crash_rate": 0.0,
+      "crash_step_mean": 100.0,
+      "n_ic": 3
+    },
+    "200": {
+      "rel_l2_mean": 0.751571774482727,
+      "rel_l2_std": 0.0022291202040003776,
+      "energy_ratio_mean": 0.9801642041585179,
+      "energy_ratio_std": 0.00024004368524803906,
+      "crash_rate": 0.0,
+      "crash_step_mean": 200.0,
+      "n_ic": 3
+    }
+  }
+}

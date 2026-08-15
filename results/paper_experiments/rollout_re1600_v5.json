@@ -1,0 +1,46 @@
+{
+  "checkpoint": "checkpoints/v5_nc_p0/v5_best.pt",
+  "h5_path": "data_generated/tgv_re1600_N64_T5.0_fluidsim.h5",
+  "ablation_mode": "full",
+  "noise_level": 0.0,
+  "num_ic": -73,
+  "max_K": 200,
+  "by_K": {
+    "10": {
+      "rel_l2_mean": Infinity,
+      "rel_l2_std": 0.0,
+      "energy_ratio_mean": Infinity,
+      "energy_ratio_std": 0.0,
+      "crash_rate": NaN,
+      "crash_step_mean": 10.0,
+      "n_ic": 0
+    },
+    "50": {
+      "rel_l2_mean": Infinity,
+      "rel_l2_std": 0.0,
+      "energy_ratio_mean": Infinity,
+      "energy_ratio_std": 0.0,
+      "crash_rate": NaN,
+      "crash_step_mean": 50.0,
+      "n_ic": 0
+    },
+    "100": {
+      "rel_l2_mean": Infinity,
+      "rel_l2_std": 0.0,
+      "energy_ratio_mean": Infinity,
+      "energy_ratio_std": 0.0,
+      "crash_rate": NaN,
+      "crash_step_mean": 100.0,
+      "n_ic": 0
+    },
+    "200": {
+      "rel_l2_mean": Infinity,
+      "rel_l2_std": 0.0,
+      "energy_ratio_mean": Infinity,
+      "energy_ratio_std": 0.0,
+      "crash_rate": NaN,
+      "crash_step_mean": 200.0,
+      "n_ic": 0
+    }
+  }
+}

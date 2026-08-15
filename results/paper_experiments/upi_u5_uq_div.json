@@ -1,0 +1,22 @@
+{
+  "methods": {
+    "div_K1": {
+      "pearson": 0.20422109556780876,
+      "auroc": 0.6859667632594255,
+      "params": 0,
+      "inference_cost": "free"
+    },
+    "gate_w": {
+      "pearson": 0.2515712834669034,
+      "auroc": 0.5936241068435435,
+      "params": 1091,
+      "inference_cost": "free"
+    },
+    "mc_dropout": {
+      "pearson": 0.5072687053463165,
+      "auroc": 0.8394149440829741,
+      "params": 3740000,
+      "inference_cost": "10x"
+    }
+  }
+}

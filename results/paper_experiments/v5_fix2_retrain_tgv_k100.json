@@ -1,0 +1,19 @@
+{
+  "checkpoint": "checkpoints/v5_fix2/v5_best.pt",
+  "h5_path": "data_generated/tgv_re6400_N64_T20.0_fluidsim.h5",
+  "ablation_mode": "full",
+  "noise_level": 0.0,
+  "num_ic": 10,
+  "max_K": 100,
+  "by_K": {
+    "100": {
+      "rel_l2_mean": 0.44360546469688417,
+      "rel_l2_std": 0.013363637680255065,
+      "energy_ratio_mean": 0.9578836226606517,
+      "energy_ratio_std": 0.002632287965678635,
+      "crash_rate": 0.0,
+      "crash_step_mean": 100.0,
+      "n_ic": 10
+    }
+  }
+}
