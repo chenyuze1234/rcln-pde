@@ -10,6 +10,7 @@
 \renewcommand{\proofname}{Proof}
 \newcommand{\bu}{\bm{u}}
 \newcommand{\cH}{\mathcal{H}}
+\newcommand{\cT}{\mathcal{T}}
 \newcommand{\Ex}{E}
 \newcommand{\inner}[2]{\langle #1, #2 \rangle}
 
@@ -39,7 +40,7 @@ In Fourier space, $\bm{k}\cdot\widehat{\bu}(\bm{k})=0$ for all $\bm{k}\neq\bm{0}
 \end{proof}
 
 \begin{theorem}[Dissipation compatibility; Theorem~2 of the main text]
-With the envelope active: (i) in decaying flow each step's output energy satisfies $\Ex(\bu_{t+1})\in[\Ex(\bu_t)-c_d\varepsilon(\bu_t)\Delta t,\ \Ex(\bu_t)]$; (ii) in driven flow it falls inside the two-sided interval of Eq.~(9) of the main text; (iii) in decaying flow the energy sequence is non-increasing and bounded below, hence convergent.
+With the envelope active: (i) in decaying flow each step's output energy satisfies $\Ex(\bu_{t+1})\in[\Ex(\bu_t)-c_d\varepsilon(\bu_t)\Delta t,\ \Ex(\bu_t)]$; (ii) in driven flow it falls inside the two-sided interval of Eq.~(8) of the main text; (iii) in decaying flow the energy sequence is non-increasing and bounded below, hence convergent.
 \end{theorem}
 
 \begin{proof}
@@ -47,7 +48,7 @@ With the envelope active: (i) in decaying flow each step's output energy satisfi
 \end{proof}
 
 \begin{theorem}[Bounded correction; Theorem~3 of the main text]
-Let $\delta(\bm{x})=w(\bm{x})(\bu_{\mathrm{soft}}-\bu_{\mathrm{anchor}})(\bm{x})$ with $w(\bm{x})\in[0,1]$, and let $\cT_R$ be the per-voxel spherical truncation of Eq.~(12) of the main text, with radius $R(\bm{x})=\min\!\big(R_{\max},\max(\kappa\hat e_g(\bm{x}),r_{\min})\big)$, $\kappa=1.54$, $r_{\min}=0.05$, $R_{\max}<\infty$ a constant fixed before deployment. Then for arbitrary network outputs, at every step and every voxel,
+Let $\delta(\bm{x})=w(\bm{x})(\bu_{\mathrm{soft}}-\bu_{\mathrm{anchor}})(\bm{x})$ with $w(\bm{x})\in[0,1]$, and let $\cT_R$ be the per-voxel spherical truncation of Eq.~(14) of the main text, with radius $R(\bm{x})=\min\!\big(R_{\max},\max(\kappa\hat e_g(\bm{x}),r_{\min})\big)$, $\kappa=1.54$, $r_{\min}=0.05$, $R_{\max}<\infty$ a constant fixed before deployment. Then for arbitrary network outputs, at every step and every voxel,
 $\|\bu_{\mathrm{fused}}(\bm{x})-\bu_{\mathrm{anchor}}(\bm{x})\|_2\le R(\bm{x})\le R_{\max}$, and
 $\|\bu_{\mathrm{fused}}-\bu_{\mathrm{anchor}}\|_{L^2(\Omega)}\le R_{\max}|\Omega|^{1/2}$.
 \end{theorem}
@@ -70,7 +71,7 @@ Assume the envelope and the truncation are active at every step.
 \begin{proof}
 (a) Theorem~2(i) gives $\Ex(\bu_{t+1})\le\Ex(\bu_t)$ for every step; induction gives $\Ex(\bu_t)\le\Ex(\bu_0)$, and $\|\bu\|_{L^2}^2=2\Ex(\bu)|\Omega|$ converts the energy bound into the norm bound. Divergence-freeness is Theorem~1 applied stepwise.
 (b) By Cauchy--Schwarz, $P(\bu)=\langle\bu\cdot\bm f\rangle_\Omega\le\|\bu\|_{L^2}\|\bm f\|_{L^2}/|\Omega| = F_{\max}\sqrt{2\Ex(\bu)}$ in density-normalised units. The upper envelope side (Theorem~2(ii)) gives $\Ex_{t+1}\le\Ex_t+c_pF_{\max}\sqrt{2\Ex_t}\,\Delta t$. Let $b_t=\sqrt{\Ex_t}$; since $\sqrt{x+c\sqrt{x}}\le\sqrt{x}+\tfrac{c}{2}$ for $c=2c_pF_{\max}\Delta t/\sqrt{2}$ (concavity of the square root), $b_{t+1}\le b_t+c_pF_{\max}\Delta t/\sqrt2$, and telescoping over $K$ steps gives the claim.
-(c) On a grid resolving $|\bm k|\le k_{\max}$, Parseval and the symbol bound give $P(u)=\langle u_x^2\rangle\le k_{\max}^2\langle u^2\rangle=2k_{\max}^2\Ex(u)$. The upper envelope side yields $\Ex_{t+1}\le\Ex_t\big(1+2c_pk_{\max}^2\Delta t\big)$, and iterating $K$ times gives the geometric bound. The anchor's low-$k$ instability (positive growth eigenvalues of Eq.~(6)) does not enter: the bound uses only the envelope and the grid ceiling, so it is exponential in the horizon but finite for every finite $K$.
+(c) On a grid resolving $|\bm k|\le k_{\max}$, Parseval and the symbol bound give $P(u)=\langle u_x^2\rangle\le k_{\max}^2\langle u^2\rangle=2k_{\max}^2\Ex(u)$. The upper envelope side yields $\Ex_{t+1}\le\Ex_t\big(1+2c_pk_{\max}^2\Delta t\big)$, and iterating $K$ times gives the geometric bound. The anchor's low-$k$ instability (positive growth eigenvalues of Eq.~(4)) does not enter: the bound uses only the envelope and the grid ceiling, so it is exponential in the horizon but finite for every finite $K$.
 \end{proof}
 
 \textbf{Why the per-system split is necessary}: in decaying flow the ceiling alone closes the argument (a); with stationary forcing, energy can legitimately grow step-by-step, and only a bounded-production hypothesis yields a finite-horizon bound (b); for KS the linear propagator amplifies low modes, so no non-expansiveness is available and the bound necessarily involves the grid wavenumber ceiling (c). A single system-independent statement would either be false (KS) or vacuous (decay). We deliberately state the strongest claim each system supports.
@@ -85,8 +86,8 @@ Assume the envelope and the truncation are active at every step.
 Classical construction & Constrained object & Our counterpart & Guarantee \\
 \midrule
 Pressure projection (fractional step) & Known discrete NS scheme & Leray projection (Eq.~3) & Theorem 1: divergence-free \\
-Energy limiter / monotone scheme & Known flux discretisation & Dissipation envelope (Eqs.~8--10) & Theorem 2: dissipation-compatible \\
-CFL-type boundedness condition & Time step & Trust-radius $R_{\mathrm{eff}}$ gating (Eqs.~12--13) & Theorem 3: bounded correction \\
+Energy limiter / monotone scheme & Known flux discretisation & Dissipation envelope (Eqs.~7--9) & Theorem 2: dissipation-compatible \\
+CFL-type boundedness condition & Time step & Trust-radius $R_{\mathrm{eff}}$ gating (Eqs.~10,~14) & Theorem 3: bounded correction \\
 Symplectic / variational integrator & Hamiltonian discretisation & (Not applicable: our systems are dissipative) & --- \\
 \bottomrule
 \end{tabular}
@@ -109,5 +110,23 @@ Self-correction in science should leave a trace. During data verification this s
 \section*{SI-D \quad Supplementary statistics}
 
 Structure functions $S_2(r)$ and scale-resolved skewness/kurtosis of velocity and vorticity increments (7 models $\times$ 3 IC snapshots, commit \texttt{d96d47c}): our backbone's distributions track the truth most closely at all scales; the intermittency artefact of the gate90 arm (vorticity kurtosis $80.8$) appears consistently at all scales. Per-IC raw rollout trajectories (rL2$(k)$, $E(k)$, $Z(k)$, crash step) are released with the result JSONs.
+
+\section*{SI-E \quad Per-step update: pseudocode in implementation order}
+
+The per-step update is listed below in exactly the order of the released implementation (\texttt{models/rcln\_upi\_v5.py}, \texttt{RCLN\_UPI\_v5.forward}; evaluation wrapper \texttt{models/dissipation\_envelope.py}). Equation and theorem numbers refer to the main text. Steps~1--9 constitute the training forward pass; step~10 is diagnostic-only during training and active at inference; step~11 is the external evaluation wrapper, never seen during training.
+
+\begin{enumerate}
+\item \textbf{Anchor:} $(\bu_{\mathrm{anchor}},\bm{z})\leftarrow$ parameter-free physical propagator (spectral-split hard side; the anchor is never trained).
+\item \textbf{Residual:} $\bu_{\mathrm{soft}}\leftarrow\bu_t+\mathcal{S}_\phi(\bu_t,\bm{z})$ (3-expert spectral-convolution MoE conditioned on the anchor latent $\bm{z}$).
+\item \textbf{Calibration:} $(\hat e_g,\hat e_l)\leftarrow$ supervised error-calibration head on \emph{detached} encoder features and detached branch fields.
+\item \textbf{Gate weight:} $w\leftarrow\hat e_g^{\beta}/(\hat e_g^{\beta}+\hat e_l^{\beta})$ per voxel (Eq.~10).
+\item \textbf{Blend:} $\bu_{\mathrm{blend}}\leftarrow(1-w)\,\bu_{\mathrm{anchor}}+w\,\bu_{\mathrm{soft}}$ (Eq.~11).
+\item \textbf{Trust radius:} $R_{\mathrm{eff}}\leftarrow\min\!\big(R_{\max}{=}5.0,\ \max(1.54\,\hat e_g,\ 0.05)\big)$ (Eqs.~10,~14).
+\item \textbf{Truncation:} $\bu_{\mathrm{fused}}\leftarrow\bu_{\mathrm{anchor}}+\min\!\big(1,\ R_{\mathrm{eff}}/\|\bu_{\mathrm{blend}}-\bu_{\mathrm{anchor}}\|_2\big)\,(\bu_{\mathrm{blend}}-\bu_{\mathrm{anchor}})$ (Theorem~3 certifies this gate-level output).
+\item \textbf{Memory FiLM:} per-channel scale and shift from the memory-bank readout, applied to $\bu_{\mathrm{fused}}$.
+\item \textbf{Divergence projection:} spectral Leray projection (Eq.~3), active in training and inference (Theorem~1).
+\item \textbf{Internal one-sided net} (inference only): if $\Ex>\!1.05\,\Ex(\bu_t)$, rescale to $1.05\,\Ex(\bu_t)$; dissipation is never blocked; diagnostic-only during training.
+\item \textbf{External strict envelope} (evaluation wrapper): if $\Ex\notin\big[\Ex(\bu_t)-c_d\,\varepsilon(\bu_t)\,\Delta t,\ \Ex(\bu_t)\big]$ (decaying) or the two-sided driven interval, rescale to the nearest bound (Eqs.~7--9; Theorem~2); hit rate and $|\alpha-1|$ logged.
+\end{enumerate}
 
 \end{document}
