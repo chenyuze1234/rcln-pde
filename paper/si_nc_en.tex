@@ -46,23 +46,34 @@ With the envelope active: (i) in decaying flow each step's output energy satisfi
 (i)(ii) By the rescaling construction: when the prediction exceeds the upper bound $\Ex_{\max}$, take $\alpha=\sqrt{\Ex_{\max}/\Ex(\bu^{\mathrm{pred}})}<1$; the identity $\Ex(\alpha\bu)=\alpha^2\Ex(\bu)$ (scalar multiplication commutes with the quadratic form) gives $\Ex(\alpha\bu^{\mathrm{pred}})=\Ex_{\max}$; the lower bound is analogous; without a violation, $\alpha=1$. Each step's output energy lands \emph{exactly} inside the closed interval---a constructive identity independent of any network property. (iii) In decaying flow $\Ex_{\max}=\Ex(\bu_t)$ makes the sequence non-increasing; $\Ex\ge0$ bounds it below; a monotone bounded sequence converges.
 \end{proof}
 
-\begin{theorem}[Bounded correction / soft landing; Theorem~3 of the main text]
-The fused output satisfies $\|\bu_{\mathrm{fused}}-\bu_{\mathrm{anchor}}\|\le R_{\mathrm{eff}}$; at initialisation ($\tau>0$, random parameters) the contraction factor obeys $\lambda<1$; as the residual learner's violation production decays during training, $\lambda\to1$.
+\begin{theorem}[Bounded correction; Theorem~3 of the main text]
+Let $\delta(\bm{x})=w(\bm{x})(\bu_{\mathrm{soft}}-\bu_{\mathrm{anchor}})(\bm{x})$ with $w(\bm{x})\in[0,1]$, and let $\cT_R$ be the per-voxel spherical truncation of Eq.~(12) of the main text, with radius $R(\bm{x})=\min\!\big(R_{\max},\max(\kappa\hat e_g(\bm{x}),r_{\min})\big)$, $\kappa=1.54$, $r_{\min}=0.05$, $R_{\max}<\infty$ a constant fixed before deployment. Then for arbitrary network outputs, at every step and every voxel,
+$\|\bu_{\mathrm{fused}}(\bm{x})-\bu_{\mathrm{anchor}}(\bm{x})\|_2\le R(\bm{x})\le R_{\max}$, and
+$\|\bu_{\mathrm{fused}}-\bu_{\mathrm{anchor}}\|_{L^2(\Omega)}\le R_{\max}|\Omega|^{1/2}$.
 \end{theorem}
 
 \begin{proof}
-Boundedness: write the untruncated fusion $\bar\bu=(1-w)\bu_{\mathrm{anchor}}+w\bu_{\mathrm{soft}}$; the deviation is $\bar\bu-\bu_{\mathrm{anchor}}=w(\bu_{\mathrm{soft}}-\bu_{\mathrm{anchor}})$. If its norm exceeds $R_{\mathrm{eff}}$, the spherical projection rescales it along the ray to radius $R_{\mathrm{eff}}$, so the inequality holds by construction. Soft landing: the contraction factor is $\lambda=\exp(-\Sigma/\tau)$, where $\Sigma$ is the violation magnitude and $\tau>0$; any non-trivial prediction has $\Sigma>0\Rightarrow\lambda<1$; training drives the residual learner toward physical compatibility, $\Sigma\downarrow0\Rightarrow\lambda\uparrow1$.
+Since the fusion is convex, $\bu_{\mathrm{blend}}-\bu_{\mathrm{anchor}}=w(\bu_{\mathrm{soft}}-\bu_{\mathrm{anchor}})=\delta$. Two cases per voxel. If $\|\delta(\bm{x})\|_2\le R(\bm{x})$, the truncation factor equals $1$ and $\bu_{\mathrm{fused}}(\bm{x})-\bu_{\mathrm{anchor}}(\bm{x})=\delta(\bm{x})$, so the bound holds trivially. If $\|\delta(\bm{x})\|_2>R(\bm{x})$, then
+$\bu_{\mathrm{fused}}(\bm{x})-\bu_{\mathrm{anchor}}(\bm{x})=\frac{R(\bm{x})}{\|\delta(\bm{x})\|_2}\delta(\bm{x})$,
+whose Euclidean norm is exactly $R(\bm{x})$. Hence the per-voxel bound holds with the \emph{same} direction as $\delta(\bm{x})$: $\cT_R$ is the Euclidean projection of $\delta(\bm{x})$ onto the closed ball $B(\bm 0,R(\bm{x}))$, which is idempotent and non-expansive. The radius satisfies $r_{\min}\le R(\bm{x})\le R_{\max}$ by the $\min/\max$ construction, independently of the network output. Squaring and summing the per-voxel bound over the grid,
+$\|\bu_{\mathrm{fused}}-\bu_{\mathrm{anchor}}\|_{L^2(\Omega)}^2=\sum_{\bm{x}}\|\delta_c(\bm{x})\|_2^2\,\Delta V\le R_{\max}^2\,|\Omega|$.
+No property of the training dynamics enters any step of the argument.
 \end{proof}
 
-\begin{corollary}[Finite-horizon rollout boundedness; Corollary~1 of the main text]
-Suppose the residual learner is Lipschitz in its input (constant $L$, structurally maintained by spectral normalisation), the anchor is non-expansive (both the orthogonal projection and the linear dissipative propagator satisfy $\|\cH(\bu)-\cH(\bm v)\|\le\|\bu-\bm v\|$), and the envelope and gate are both active. Then any $K$-step trajectory is (i) stepwise divergence-free; (ii) monotonically energy-feasible in decaying flow; (iii) uniformly bounded in $\|\bu_t\|$.
+\begin{corollary}[Finite-horizon boundedness, per system; Corollary~1 of the main text]
+Assume the envelope and the truncation are active at every step.
+(a) Decaying unforced systems: $\|\bu_t\|_{L^2}\le\|\bu_0\|_{L^2}$ for all $t\le K$, with every step divergence-free.
+(b) Forced 2D Kolmogorov flow with $\|\bm f\|_{L^2}\le F_{\max}$: $\sqrt{\Ex_K}\le\sqrt{\Ex_0}+c_pF_{\max}K\Delta t/\sqrt2$.
+(c) KS on the resolved grid $|\bm k|\le k_{\max}$: $\Ex_K\le\Ex_0(1+2c_pk_{\max}^2\Delta t)^K$.
 \end{corollary}
 
 \begin{proof}
-(i)(ii) follow from the stepwise application of Theorems~1 and~2. (iii) By induction: suppose $\|\bu_{t-1}\|\le M_{t-1}$. Non-expansiveness of the anchor gives $\|\cH(\bu_{t-1})\|\le\|\cH(\bm 0)\|+M_{t-1}$; the gate truncation bounds the fused output's deviation from the anchor by $R_{\mathrm{eff}}$; the envelope truncates the energy (hence the norm) to the order of $\sqrt{2\Ex_{\max}|\Omega|}$. Composing the three yields a stepwise bounded recursion $M_t\le M_{t-1}+C$, and boundedness of the energy forces $M_t$ to be uniformly bounded, excluding numerical blow-up.
+(a) Theorem~2(i) gives $\Ex(\bu_{t+1})\le\Ex(\bu_t)$ for every step; induction gives $\Ex(\bu_t)\le\Ex(\bu_0)$, and $\|\bu\|_{L^2}^2=2\Ex(\bu)|\Omega|$ converts the energy bound into the norm bound. Divergence-freeness is Theorem~1 applied stepwise.
+(b) By Cauchy--Schwarz, $P(\bu)=\langle\bu\cdot\bm f\rangle_\Omega\le\|\bu\|_{L^2}\|\bm f\|_{L^2}/|\Omega| = F_{\max}\sqrt{2\Ex(\bu)}$ in density-normalised units. The upper envelope side (Theorem~2(ii)) gives $\Ex_{t+1}\le\Ex_t+c_pF_{\max}\sqrt{2\Ex_t}\,\Delta t$. Let $b_t=\sqrt{\Ex_t}$; since $\sqrt{x+c\sqrt{x}}\le\sqrt{x}+\tfrac{c}{2}$ for $c=2c_pF_{\max}\Delta t/\sqrt{2}$ (concavity of the square root), $b_{t+1}\le b_t+c_pF_{\max}\Delta t/\sqrt2$, and telescoping over $K$ steps gives the claim.
+(c) On a grid resolving $|\bm k|\le k_{\max}$, Parseval and the symbol bound give $P(u)=\langle u_x^2\rangle\le k_{\max}^2\langle u^2\rangle=2k_{\max}^2\Ex(u)$. The upper envelope side yields $\Ex_{t+1}\le\Ex_t\big(1+2c_pk_{\max}^2\Delta t\big)$, and iterating $K$ times gives the geometric bound. The anchor's low-$k$ instability (positive growth eigenvalues of Eq.~(6)) does not enter: the bound uses only the envelope and the grid ceiling, so it is exponential in the horizon but finite for every finite $K$.
 \end{proof}
 
-\textbf{Testability of the Lipschitz assumption}: spectral normalisation on the hard side structurally maintains upper bounds on the spectral norms of all linear layers during training; per-layer spectral norms can be logged, so the assumption is a checkable numerical property.
+\textbf{Why the per-system split is necessary}: in decaying flow the ceiling alone closes the argument (a); with stationary forcing, energy can legitimately grow step-by-step, and only a bounded-production hypothesis yields a finite-horizon bound (b); for KS the linear propagator amplifies low modes, so no non-expansiveness is available and the bound necessarily involves the grid wavenumber ceiling (c). A single system-independent statement would either be false (KS) or vacuous (decay). We deliberately state the strongest claim each system supports.
 
 \section*{SI-B \quad Point-by-point comparison with structure-preserving numerical methods}
 
