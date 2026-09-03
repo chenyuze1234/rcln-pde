@@ -1,0 +1,132 @@
+% Supplementary Information -- English version (v3, 2026-08-14). Compile with pdflatex.
+\documentclass[11pt,a4paper]{article}
+\usepackage[a4paper,margin=2.4cm]{geometry}
+\usepackage{amsmath,amssymb,amsthm,bm}
+\usepackage{booktabs,array}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\newtheorem{theorem}{Theorem}
+\newtheorem{corollary}{Corollary}
+\renewcommand{\proofname}{Proof}
+\newcommand{\bu}{\bm{u}}
+\newcommand{\cH}{\mathcal{H}}
+\newcommand{\cT}{\mathcal{T}}
+\newcommand{\Ex}{E}
+\newcommand{\inner}[2]{\langle #1, #2 \rangle}
+
+\title{\bfseries Supplementary Information\\[4pt]
+\large Architecture-embedded physical constraints enable stable long-horizon neural PDE prediction}
+\author{Yuze Chen}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section*{SI-A \quad Full proofs of the theorems}
+
+\paragraph{Notation.} $\bu_t$ is the state at step $t$; $\Ex(\bu)=\tfrac12\langle\|\bu\|^2\rangle_\Omega$; $\mathbb{P}$ denotes the Leray spectral projection (Eq.~(3) of the main text); the envelope constants $c_d,c_p$ follow the calibration protocol of the main text.
+
+\begin{theorem}[Divergence-free output; Theorem~1 of the main text]
+Suppose the hard anchor contains the Leray projection $\mathbb{P}$ and every step's correction exits through the projection. Then for any input $\bu_t$, the rollout output satisfies $\nabla\!\cdot\!\bu_{t+1}=0$ (to spectral accuracy).
+\end{theorem}
+
+\begin{proof}
+A periodic $L^2$ vector field admits the Helmholtz decomposition $\tilde\bu=\mathbb{P}\tilde\bu+\nabla q$. For any $\bm{k}\neq\bm{0}$,
+\[
+\bm{k}\cdot\widehat{\mathbb{P}\tilde\bu}(\bm{k})
+=\bm{k}\cdot\widehat{\tilde\bu}(\bm{k})-\frac{\bm{k}\,\big(\bm{k}^{\mathsf T}\widehat{\tilde\bu}(\bm{k})\big)}{\|\bm{k}\|^2}=0 .
+\]
+In Fourier space, $\bm{k}\cdot\widehat{\bu}(\bm{k})=0$ for all $\bm{k}\neq\bm{0}$ is equivalent to $\nabla\!\cdot\!\bu=0$ in physical space; the $\bm{k}=\bm{0}$ mode is a constant field with zero divergence. $\mathbb{P}$ is idempotent ($\mathbb{P}^2=\mathbb{P}$, since $\bm{I}-\bm{k}\bm{k}^{\mathsf T}/\|\bm{k}\|^2$ is an orthogonal projection matrix), so any output that passes through $\mathbb{P}$ after arbitrary processing lies in the range of $\mathbb{P}$. Every rollout step is therefore divergence-free.
+\end{proof}
+
+\begin{theorem}[Dissipation compatibility; Theorem~2 of the main text]
+With the envelope active: (i) in decaying flow each step's output energy satisfies $\Ex(\bu_{t+1})\in[\Ex(\bu_t)-c_d\varepsilon(\bu_t)\Delta t,\ \Ex(\bu_t)]$; (ii) in driven flow it falls inside the two-sided interval of Eq.~(8) of the main text; (iii) in decaying flow the energy sequence is non-increasing and bounded below, hence convergent.
+\end{theorem}
+
+\begin{proof}
+(i)(ii) By the rescaling construction: when the prediction exceeds the upper bound $\Ex_{\max}$, take $\alpha=\sqrt{\Ex_{\max}/\Ex(\bu^{\mathrm{pred}})}<1$; the identity $\Ex(\alpha\bu)=\alpha^2\Ex(\bu)$ (scalar multiplication commutes with the quadratic form) gives $\Ex(\alpha\bu^{\mathrm{pred}})=\Ex_{\max}$; the lower bound is analogous; without a violation, $\alpha=1$. Each step's output energy lands \emph{exactly} inside the closed interval---a constructive identity independent of any network property. (iii) In decaying flow $\Ex_{\max}=\Ex(\bu_t)$ makes the sequence non-increasing; $\Ex\ge0$ bounds it below; a monotone bounded sequence converges.
+\end{proof}
+
+\begin{theorem}[Bounded correction; Theorem~3 of the main text]
+Let $\delta(\bm{x})=w(\bm{x})(\bu_{\mathrm{soft}}-\bu_{\mathrm{anchor}})(\bm{x})$ with $w(\bm{x})\in[0,1]$, and let $\cT_R$ be the per-voxel spherical truncation of Eq.~(14) of the main text, with radius $R(\bm{x})=\min\!\big(R_{\max},\max(\kappa\hat e_g(\bm{x}),r_{\min})\big)$, $\kappa=1.54$, $r_{\min}=0.05$, $R_{\max}<\infty$ a constant fixed before deployment. Then for arbitrary network outputs, at every step and every voxel,
+$\|\bu_{\mathrm{fused}}(\bm{x})-\bu_{\mathrm{anchor}}(\bm{x})\|_2\le R(\bm{x})\le R_{\max}$, and
+$\|\bu_{\mathrm{fused}}-\bu_{\mathrm{anchor}}\|_{L^2(\Omega)}\le R_{\max}|\Omega|^{1/2}$.
+\end{theorem}
+
+\begin{proof}
+Since the fusion is convex, $\bu_{\mathrm{blend}}-\bu_{\mathrm{anchor}}=w(\bu_{\mathrm{soft}}-\bu_{\mathrm{anchor}})=\delta$. Two cases per voxel. If $\|\delta(\bm{x})\|_2\le R(\bm{x})$, the truncation factor equals $1$ and $\bu_{\mathrm{fused}}(\bm{x})-\bu_{\mathrm{anchor}}(\bm{x})=\delta(\bm{x})$, so the bound holds trivially. If $\|\delta(\bm{x})\|_2>R(\bm{x})$, then
+$\bu_{\mathrm{fused}}(\bm{x})-\bu_{\mathrm{anchor}}(\bm{x})=\frac{R(\bm{x})}{\|\delta(\bm{x})\|_2}\delta(\bm{x})$,
+whose Euclidean norm is exactly $R(\bm{x})$. Hence the per-voxel bound holds with the \emph{same} direction as $\delta(\bm{x})$: $\cT_R$ is the Euclidean projection of $\delta(\bm{x})$ onto the closed ball $B(\bm 0,R(\bm{x}))$, which is idempotent and non-expansive. The radius satisfies $r_{\min}\le R(\bm{x})\le R_{\max}$ by the $\min/\max$ construction, independently of the network output. Squaring and summing the per-voxel bound over the grid,
+$\|\bu_{\mathrm{fused}}-\bu_{\mathrm{anchor}}\|_{L^2(\Omega)}^2=\sum_{\bm{x}}\|\delta_c(\bm{x})\|_2^2\,\Delta V\le R_{\max}^2\,|\Omega|$.
+No property of the training dynamics enters any step of the argument.
+\end{proof}
+
+\begin{corollary}[Finite-horizon boundedness, per system; Corollary~1 of the main text]
+Assume the envelope and the truncation are active at every step.
+(a) Decaying unforced systems: $\|\bu_t\|_{L^2}\le\|\bu_0\|_{L^2}$ for all $t\le K$, with every step divergence-free.
+(b) Forced 2D Kolmogorov flow with $\|\bm f\|_{L^2}\le F_{\max}$: $\sqrt{\Ex_K}\le\sqrt{\Ex_0}+c_pF_{\max}K\Delta t/\sqrt2$.
+(c) KS on the resolved grid $|\bm k|\le k_{\max}$: $\Ex_K\le\Ex_0(1+2c_pk_{\max}^2\Delta t)^K$.
+\end{corollary}
+
+\begin{proof}
+(a) Theorem~2(i) gives $\Ex(\bu_{t+1})\le\Ex(\bu_t)$ for every step; induction gives $\Ex(\bu_t)\le\Ex(\bu_0)$, and $\|\bu\|_{L^2}^2=2\Ex(\bu)|\Omega|$ converts the energy bound into the norm bound. Divergence-freeness is Theorem~1 applied stepwise.
+(b) By Cauchy--Schwarz, $P(\bu)=\langle\bu\cdot\bm f\rangle_\Omega\le\|\bu\|_{L^2}\|\bm f\|_{L^2}/|\Omega| = F_{\max}\sqrt{2\Ex(\bu)}$ in density-normalised units. The upper envelope side (Theorem~2(ii)) gives $\Ex_{t+1}\le\Ex_t+c_pF_{\max}\sqrt{2\Ex_t}\,\Delta t$. Let $b_t=\sqrt{\Ex_t}$; since $\sqrt{x+c\sqrt{x}}\le\sqrt{x}+\tfrac{c}{2}$ for $c=2c_pF_{\max}\Delta t/\sqrt{2}$ (concavity of the square root), $b_{t+1}\le b_t+c_pF_{\max}\Delta t/\sqrt2$, and telescoping over $K$ steps gives the claim.
+(c) On a grid resolving $|\bm k|\le k_{\max}$, Parseval and the symbol bound give $P(u)=\langle u_x^2\rangle\le k_{\max}^2\langle u^2\rangle=2k_{\max}^2\Ex(u)$. The upper envelope side yields $\Ex_{t+1}\le\Ex_t\big(1+2c_pk_{\max}^2\Delta t\big)$, and iterating $K$ times gives the geometric bound. The anchor's low-$k$ instability (positive growth eigenvalues of Eq.~(4)) does not enter: the bound uses only the envelope and the grid ceiling, so it is exponential in the horizon but finite for every finite $K$.
+\end{proof}
+
+\textbf{Why the per-system split is necessary}: in decaying flow the ceiling alone closes the argument (a); with stationary forcing, energy can legitimately grow step-by-step, and only a bounded-production hypothesis yields a finite-horizon bound (b); for KS the linear propagator amplifies low modes, so no non-expansiveness is available and the bound necessarily involves the grid wavenumber ceiling (c). A single system-independent statement would either be false (KS) or vacuous (decay). We deliberately state the strongest claim each system supports.
+
+\section*{SI-B \quad Point-by-point comparison with structure-preserving numerical methods}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Correspondence between our architectural priors and classical structure-preserving numerical methods.}
+\begin{tabular}{llll}
+\toprule
+Classical construction & Constrained object & Our counterpart & Guarantee \\
+\midrule
+Pressure projection (fractional step) & Known discrete NS scheme & Leray projection (Eq.~3) & Theorem 1: divergence-free \\
+Energy limiter / monotone scheme & Known flux discretisation & Dissipation envelope (Eqs.~7--9) & Theorem 2: dissipation-compatible \\
+CFL-type boundedness condition & Time step & Trust-radius $R_{\mathrm{eff}}$ gating (Eqs.~10,~14) & Theorem 3: bounded correction \\
+Symplectic / variational integrator & Hamiltonian discretisation & (Not applicable: our systems are dissipative) & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The key difference: classical methods constrain \emph{known discrete operators}, and their stability proofs rely on the algebraic structure of the scheme; we constrain \emph{a neural network with unanalysable degrees of freedom}, so the guarantees must be constructively independent of network properties---the proofs use only projection idempotency and the scalar scaling identity. The two families do not compete: our target setting is rollout where the true solution is unavailable and data-driven extrapolation is unavoidable; the architectural prior carries structure-preserving ideas into a space where no scheme exists.
+
+\section*{SI-C \quad Data archaeology: a complete record of deprecated data and conclusions}
+
+Self-correction in science should leave a trace. During data verification this study identified and deprecated two legacy datasets together with the conclusions drawn on them:
+
+\paragraph{C.1 KS data (System C).} The legacy \texttt{ks\_L32/L44} files were found by equation-residual verification to satisfy a \textbf{damped variant} $u_t=-uu_x\boldsymbol{+}u_{xx}-u_{xxxx}$ (relative residual $1.85$ against standard KS versus $1.7\times10^{-3}$ against the damped variant), with monotonically decaying energy and no chaos; the legacy \texttt{ks\_L22} file contained 600 frames of pure NaN. The direct cause of the legacy line's ``all length-OOD runs crash'' was NaN data and a $\Delta t$ mismatch ($0.05$ vs $0.01$), not a model property. We also found that the direct-formula ETDRK4's $10^{-12}$ safeguard swallowed the near-zero eigenvalue modes at $L{=}44$ ($\lambda\approx+0.001$), causing numerical blow-up; after switching to the Kassam--Trefethen contour-integral ETDRK4, the one-step integration-consistency relative error is $\sim3\times10^{-8}$. All three length datasets were regenerated with standard KS (burn-in $T{=}50$, 2/3 de-aliasing).
+
+\paragraph{C.2 System B data.} All 8 legacy ``2D'' candidate files were measured to be \textbf{3D velocity fields} ($[T,3,64,64,64]$); the legacy protocol took a mid-plane $(u,v)$ slice and passed it off as 2D NS: the slice divergence ratio is $\approx1.0$ (violating 2D incompressibility) and the vorticity-equation residual is $2$--$24$ (violating 2D NS); the main-system file was even the laminar Kolmogorov profile in its spin-up phase (neither turbulent nor stationary). The legacy protocol also contained IC-statistics fabrication (at $K{=}200$ only 1 IC was actually used while n\_ic$=5$ was reported) and evaluation-start-point leakage into the training segment. All numbers in the legacy \texttt{generality\_system\_b.json} are deprecated.
+
+\paragraph{C.3 Crash-criterion calibration.} The legacy internal baseline line reported ``zero crashes'' under a lenient rL2${}>10$ criterion; its one-sided $1.05\times$/step anti-blow-up net compounds over 200 steps into an effective energy ceiling of $1.05^{200}\approx1.7\times10^{4}$---no constraint at all. This work uniformly adopts the strict criteria of the main text (Crash-criteria table).
+
+\paragraph{C.4 Lessons and rules.} These findings motivated three project rules, now written into the data-generation pipeline: (i) before entering the repository, any dataset must pass an equation-residual check (relative residual $<10^{-2}$) and a one-step integration-consistency check ($<10^{-6}$); (ii) stationarity criteria are calibrated to correlated processes (estimated autocorrelation time $\tau_c$ plus quantile gates on a long reference trajectory)---a white-noise criterion would falsely kill turbulence; (iii) deprecated files are not deleted but archived together with the verification scripts to preserve traceability.
+
+\section*{SI-D \quad Supplementary statistics}
+
+Structure functions $S_2(r)$ and scale-resolved skewness/kurtosis of velocity and vorticity increments (7 models $\times$ 3 IC snapshots, commit \texttt{d96d47c}): our backbone's distributions track the truth most closely at all scales; the intermittency artefact of the gate90 arm (vorticity kurtosis $80.8$) appears consistently at all scales. Per-IC raw rollout trajectories (rL2$(k)$, $E(k)$, $Z(k)$, crash step) are released with the result JSONs.
+
+\section*{SI-E \quad Per-step update: pseudocode in implementation order}
+
+The per-step update is listed below in exactly the order of the released implementation (\texttt{models/rcln\_upi\_v5.py}, \texttt{RCLN\_UPI\_v5.forward}; evaluation wrapper \texttt{models/dissipation\_envelope.py}). Equation and theorem numbers refer to the main text. Steps~1--9 constitute the training forward pass; step~10 is diagnostic-only during training and active at inference; step~11 is the external evaluation wrapper, never seen during training.
+
+\begin{enumerate}
+\item \textbf{Anchor:} $(\bu_{\mathrm{anchor}},\bm{z})\leftarrow$ parameter-free physical propagator (spectral-split hard side; the anchor is never trained).
+\item \textbf{Residual:} $\bu_{\mathrm{soft}}\leftarrow\bu_t+\mathcal{S}_\phi(\bu_t,\bm{z})$ (3-expert spectral-convolution MoE conditioned on the anchor latent $\bm{z}$).
+\item \textbf{Calibration:} $(\hat e_g,\hat e_l)\leftarrow$ supervised error-calibration head on \emph{detached} encoder features and detached branch fields.
+\item \textbf{Gate weight:} $w\leftarrow\hat e_g^{\beta}/(\hat e_g^{\beta}+\hat e_l^{\beta})$ per voxel (Eq.~10).
+\item \textbf{Blend:} $\bu_{\mathrm{blend}}\leftarrow(1-w)\,\bu_{\mathrm{anchor}}+w\,\bu_{\mathrm{soft}}$ (Eq.~11).
+\item \textbf{Trust radius:} $R_{\mathrm{eff}}\leftarrow\min\!\big(R_{\max}{=}5.0,\ \max(1.54\,\hat e_g,\ 0.05)\big)$ (Eqs.~10,~14).
+\item \textbf{Truncation:} $\bu_{\mathrm{fused}}\leftarrow\bu_{\mathrm{anchor}}+\min\!\big(1,\ R_{\mathrm{eff}}/\|\bu_{\mathrm{blend}}-\bu_{\mathrm{anchor}}\|_2\big)\,(\bu_{\mathrm{blend}}-\bu_{\mathrm{anchor}})$ (Theorem~3 certifies this gate-level output).
+\item \textbf{Memory FiLM:} per-channel scale and shift from the memory-bank readout, applied to $\bu_{\mathrm{fused}}$.
+\item \textbf{Divergence projection:} spectral Leray projection (Eq.~3), active in training and inference (Theorem~1).
+\item \textbf{Internal one-sided net} (inference only): if $\Ex>\!1.05\,\Ex(\bu_t)$, rescale to $1.05\,\Ex(\bu_t)$; dissipation is never blocked; diagnostic-only during training.
+\item \textbf{External strict envelope} (evaluation wrapper): if $\Ex\notin\big[\Ex(\bu_t)-c_d\,\varepsilon(\bu_t)\,\Delta t,\ \Ex(\bu_t)\big]$ (decaying) or the two-sided driven interval, rescale to the nearest bound (Eqs.~7--9; Theorem~2); hit rate and $|\alpha-1|$ logged.
+\end{enumerate}
+
+\end{document}

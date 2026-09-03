@@ -1,0 +1,586 @@
+% RCLN manuscript -- English version for Nature Communications (v3, 2026-08-14)
+% Compile with pdflatex (no CJK dependency). All numbers trace to results/paper_experiments/ JSONs.
+% Official-template switch: replace the documentclass/preamble block with
+%   \documentclass[pdflatex,sn-nature]{sn-jnl}
+% (sn-jnl is preloaded in the Overleaf "Springer Nature" gallery template); see README.md.
+\documentclass[11pt,a4paper]{article}
+\usepackage[a4paper,margin=2.4cm]{geometry}
+\usepackage{amsmath,amssymb,amsthm,bm}
+\usepackage{booktabs,array,multirow,tabularx}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage[super,sort&compress]{cite}
+\usepackage[hidelinks]{hyperref}
+\captionsetup{font=small,labelfont=bf}
+\newtheorem{theorem}{Theorem}
+\newtheorem{corollary}{Corollary}
+\newtheorem{definition}{Definition}
+\newtheorem{remark}{Remark}
+\newcommand{\bu}{\bm{u}}
+\newcommand{\cF}{\mathcal{F}}
+\newcommand{\cC}{\mathcal{C}}
+\newcommand{\cH}{\mathcal{H}}
+\newcommand{\cS}{\mathcal{S}}
+\newcommand{\cX}{\mathcal{X}}
+\newcommand{\Ex}{E}
+\newcommand{\cT}{\mathcal{T}}
+\newcommand{\inner}[2]{\langle #1, #2 \rangle}
+
+\title{\bfseries Architecture-embedded physical constraints enable stable\\ long-horizon neural PDE prediction}
+% TODO(user): fill in affiliation and the corresponding email before submission.
+\author{Yuze Chen$^{1,*}$\\[4pt]
+\normalsize $^{1}$[Department, University, City, Country]\\
+\normalsize $^{*}$Corresponding author: [email]}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent Neural operators now predict the short-term evolution of partial differential equations with high fidelity, yet long-horizon autoregressive rollout remains unreliable: errors compound over hundreds of steps and end in energy blow-up or over-dissipated collapse. Here we show that one structural variable decides this fate: where physical knowledge sits relative to the recurrent update. Constraints placed in the training loss govern only the training distribution, and constraints applied after the network leave the recurrent dynamics between corrections unregulated; constraints embedded inside the forward pass act at every deployed step by construction. We instantiate the latter as architecture-level physical anchoring: the governing equations themselves---a zero-parameter explicit spectral step, Leray projection and a dissipation-admissible energy envelope---sit on the inference path as a non-bypassable law, while a gated, radius-limited learner closes only the gap between this ideal point and reality. We report the counterfactual the literature omits: at matched resolution the explicit step alone outperforms every learned model, so learned components must earn their place where the law is degraded or unavailable---and we show the trust boundary that budgets them must be \emph{shaped}, not merely enlarged (anisotropic per-band trust cuts long-horizon error by $18$--$35\%$ where uniform enlargement achieves nothing). Under matched protocols across 3D decaying turbulence, 2D forced turbulence and 1D chaos, the anchored model completes $100$ rollouts of $200$ steps with zero crashes and a $0.6\%$ energy bias, while loss-only and post-hoc placements either fail or distort the physics they were meant to protect. Physics as a loss is a suggestion; as post-processing, a patch; on the inference path, a law.
+\end{abstract}
+
+\noindent\textbf{Keywords}: physics-informed machine learning; neural operators; long-horizon stability; constraint-preserving architectures; error diagnosis
+
+\section*{Introduction}
+
+Learning solution operators of partial differential equations has emerged as a promising route to accelerate repeated simulations in science and engineering\cite{lu2021deeponet,li2021fno,kovachki2023,yin2024dimon,azizzadenesheli2024}. For time-dependent systems, however, practical deployment rarely needs a single accurate step: it needs a learned transition operator applied recursively, hundreds of times beyond the supervised horizon. Small local errors then feed back through the nonlinear dynamics, producing phase drift, spectral distortion and eventually qualitatively incorrect trajectories---even when one-step errors remain small\cite{brandstetter2022mpnpde,mccabe2023stability,lippe2023pderefiner}. The phenomenology is concrete: in our 3D turbulence benchmark an official FNO tracks the truth for more than a hundred steps and then, within a dozen steps, its kinetic energy leaves the dissipation range and grows without bound (median first-crash step $k{=}65$, range $47$--$79$, over $100$ rollouts from five seeds on twenty initial conditions), while a U-Net survives the same horizon only by draining its energy to $63\%$ of the initial value---two opposite structural diseases, explosion and over-dissipation, that one-step accuracy never announces. Long-horizon reliability, rather than short-step interpolation, is therefore the central open requirement for neural PDE surrogates.
+
+This failure mode is well documented, and several stabilisation routes exist. Multi-step and pushforward training reshape the optimisation objective\cite{brandstetter2022mpnpde}; stability-oriented analyses identify which operator components amplify recurrent errors\cite{mccabe2023stability}; PDE-Refiner restores the low-amplitude frequency content that one-step MSE training neglects, at the price of a diffusion-inspired refinement pass per step\cite{lippe2023pderefiner}; and spectral-generator formulations constrain the linear amplification of each autoregressive step and gate the nonlinear forcing to obtain finite-horizon rollout bounds\cite{li2026sgno,zhang2026geoincno}. These advances establish that long-horizon failure is neither unexplored nor attributable to a single cause. They also leave a specific question open: none of them isolates \emph{where in the learned update a physical constraint acts}, and whether that position---training objective, output stage, or recurrent path---changes its effect on the deployed dynamics.
+
+Physical knowledge has in fact been inserted at each of these positions, with fundamentally different scopes of guarantee. Residual penalties inject governing equations into the training objective\cite{raissi2019pinn,karniadakis2021,li2024pino,wang2021pideeponet,zanardi2023adaptive}: general and flexible, but the guarantee is a low \emph{average} residual over the training distribution, from which repeated self-feeding can drift away. Output projection maps each prediction onto a physical manifold\cite{valente2025projection}: it certifies the projected quantity at the projected step, but the network never sees its own corrected state, and what happens between projections---to unconstrained variables and to the recurrent dynamics---is outside its scope. Structure-preserving architectures encode conservation laws, dissipation inequalities or admissible operator classes directly in the parameterisation\cite{rao2023percnn,mohan2023hard,lee2021deepconservation,chen2024onsagernet,xiong2026pdco,chalapathi2024moe}. Hybrid prior--corrector schemes keep an executable physical step inside every learned update and train a correction for the unresolved dynamics\cite{wang2026ani,yin2021aphynity}. Because these strategies constrain different objects---the optimisation objective, the output state, the parameterisation, or the recurrent transition itself---their guarantees need not persist equally under autoregressive deployment. The gap this paper addresses is not that physical constraints are unavailable, but that the \emph{consequences of their placement} for long-horizon stability have not been isolated under controlled conditions.
+
+Here we ask: when and why must physical constraints remain active along the recurrent inference path to improve long-horizon neural PDE prediction? Our design principle is that \emph{known dynamics should remain executable; learning should be reserved for the structured residual that the known dynamics cannot determine}. Instantiating this principle, every update step of our model executes a zero-parameter physical anchor (an explicit pseudo-spectral Navier--Stokes step for 3D incompressible flow; exact linear propagators for the 2D and 1D systems), adds a learned residual correction truncated by a geometry-dependent gate to a calibrated trust region, and projects the result onto a dissipation-admissible energy envelope---all inside the forward pass, all differentiable where learning is needed, none bypassable. Using matched backbones, parameter counts, training budgets and rollout protocols, we compare loss-only, inference-only and end-to-end constrained variants across three canonical dynamical systems spanning distinct dimensionalities and dynamical regimes: 3D decaying Taylor--Green turbulence, 2D forced Kolmogorov turbulence, and the 1D chaotic Kuramoto--Sivashinsky equation. Our contributions are: (i) \emph{mechanism}---a controlled isolation of constraint position, showing that only path-level enforcement changes error amplification, long-time physical statistics and failure onset; (ii) \emph{method}---the anchor--residual--gate--envelope update mechanism above, together with deterministic guarantees (divergence-free output, dissipation compatibility, bounded correction; finite-horizon boundedness stated per system with explicit assumptions, Section~\ref{sec:theory}); (iii) \emph{evidence}---multiple training seeds and independent initial conditions under a leakage-free split, with crash rates, time-to-failure and physical statistics reported with confidence intervals; and (iv) \emph{diagnosis}---we test whether the anchor--residual discrepancy predicts failure onset beyond standard residual and uncertainty indicators. Two further findings emerged from stress-testing our own design, and we report both with the same honesty: (v) \emph{the explicit-operator counterfactual}---the governing-equation step alone, run without any learned component, dominates every learned model at matched resolution; we measure exactly where this ideal point holds and where it breaks (real-data cutouts violate its preconditions within two steps), which defines the territory where learned closures earn their place (Section~\ref{sec:explicit}); and (vi) \emph{the shape of the cognitive boundary}---the trust region budgeting the learned correction must be anisotropic, not merely large: uniformly enlarging it changes nothing ($<0.5\%$), while a per-band reshaping recovers $18$--$35\%$ of long-horizon error at zero training cost (Section~\ref{sec:shape}). Together, these results isolate the effect of keeping physical constraints active along the recurrent inference path, rather than using them only as training-time penalties or detached post-processing operations. Physics as a loss is a suggestion; as post-processing, a patch; on the inference path, a law.
+
+\textbf{Relation to prior work}. The closest lines are the ones named above, and the distinctions are specific. PDE-Refiner\cite{lippe2023pderefiner} and SGNO\cite{li2026sgno} target the same long-horizon setting: the former stabilises by iterative refinement of the output distribution, the latter by constraining the spectral generator of the latent step; neither varies the position of \emph{physical} constraints as the experimental variable, and our KS and Kolmogorov protocols overlap with theirs deliberately, enabling like-for-like reading. Output projection\cite{valente2025projection} and PhysicsCorrect\cite{huang2025physicorrect} certify selected constraints post-hoc; our inference-only arm adopts exactly this position and fails differently (Results), so we do not claim that post-hoc constraints are bypassable in general---only that they do not regulate the recurrent dynamics between projections. PeRCNN\cite{rao2023percnn}, hard-constrained turbulence coarse-graining\cite{mohan2023hard}, Deep Conservation\cite{lee2021deepconservation} and S-OnsagerNet\cite{chen2024onsagernet} establish that architecture-level physics is achievable and valuable; our aim is not to re-introduce it but to identify when it is \emph{necessary}. ANI\cite{wang2026ani} shares the prior-plus-corrector philosophy; our anchor differs in being parameter-free and non-trainable, our correction is explicitly radius-limited at every voxel, and we analyse the anchor--corrector discrepancy diagnostically. Structure-preserving numerical methods\cite{hairer2006gni,chorin1968} are complete for known discrete operators; our theorems extend the same certificate logic to transitions containing a neural network (Discussion; SI-B). Data-driven weather and climate surrogates\cite{lam2023graphcast,kochkov2024neuralgcm,kochkov2021mlcfd,yuval2020stable} achieve stability through engineering of the training distribution and the coupling, and latent-space operator learning\cite{kontolati2024latent} shows the value of structured transitions; our question is orthogonal and our testbeds are canonical by design. Within this journal, physics-informed approaches have precedent in identifiability and prediction studies\cite{kharazmi2021identifiability}; our contribution targets the complementary, dynamical-stability side. Uncertainty quantification (MC-dropout\cite{gal2016dropout}, deep ensembles\cite{lakshminarayanan2017}) estimates predictive spread at the price of multiple stochastic passes; the discrepancy signal here is a single-pass geometric quantity, and we compare the two empirically rather than claim equivalence (Section~\ref{sec:upi}).
+
+
+\section{Results}
+
+\subsection{Architecture: physics on the inference path}\label{sec:arch}
+
+\textbf{Problem setup}. Given a state $\bu_t\in\cX\subset L^2(\Omega)^d$ on a periodic domain $\Omega$, a one-step propagator $\cF_\theta:\cX\to\cX$ generates a long-horizon trajectory autoregressively,
+\begin{equation}
+\bu_{t+1}=\cF_\theta(\bu_t),\qquad t=0,1,\dots,K-1 .
+\label{eq:rollout}
+\end{equation}
+Chaotic and turbulent systems have positive Lyapunov exponents, so one-step errors are amplified by $e^{\lambda_{\max}\Delta t}$ per step; at $K\sim O(10^2)$, any one-step accuracy advantage is dominated by stability. The goal is to construct $\cF_\theta$ such that the trajectory remains inside the physically feasible set for the entire horizon while preserving correct statistical physics.
+
+\begin{definition}[Physically feasible set]
+For 3D incompressible decaying flow,
+\begin{equation}
+\cC_{\mathrm{phys}}=\Big\{\bu:\ \nabla\!\cdot\!\bu=0,\quad \Ex(\bu_{\mathrm{in}})-c_d\,\varepsilon(\bu_{\mathrm{in}})\,\Delta t\le \Ex(\bu)\le \Ex(\bu_{\mathrm{in}})\Big\},
+\label{eq:feasible}
+\end{equation}
+where $\Ex(\bu)=\tfrac12\langle\|\bu\|^2\rangle_\Omega$ is the kinetic-energy density, $\varepsilon(\bu)=\nu\langle\|\nabla\times\bu\|^2\rangle_\Omega$ the enstrophy dissipation rate, and $c_d>1$ a calibrated dissipation constant. For driven systems (2D forced turbulence, KS), the no-growth ceiling is replaced by a production-rate bound (Eq.~\eqref{eq:env-driven}).
+\end{definition}
+
+The three elements encode a kinematic constraint (zero divergence), a thermodynamic direction (energy cannot increase) and a bound on the dissipation rate. This differs essentially from our earlier projection that pulled the energy back to the input value at every step: at finite Reynolds number the true solution necessarily dissipates, and $\Ex/\Ex_0\equiv1$ is the wrong physics.
+
+\textbf{Physical anchor: zero-parameter carriers of exactly known dynamics}. \emph{3D incompressible flow: the Leray projection.} On a periodic domain the Helmholtz--Leray decomposition is the spectral projection
+\begin{equation}
+\widehat{\bu}_{\mathrm{sol}}(\bm{k})=\Big(\bm{I}-\frac{\bm{k}\bm{k}^{\mathsf T}}{\|\bm{k}\|^2}\Big)\widehat{\tilde\bu}(\bm{k}),\qquad \bm{k}\neq\bm{0},
+\label{eq:leray}
+\end{equation}
+leaving the zero mode unchanged. The projection is idempotent, orthogonal, parameter-free and differentiable inside the forward pass of $\cF_\theta$.
+
+\emph{Exact linear propagators (2D/1D).} The 1D Kuramoto--Sivashinsky equation\cite{kuramoto1976,sivashinsky1977} $u_t=-uu_x-u_{xx}-u_{xxxx}$ has the linear symbol
+\begin{equation}
+\lambda(k)=k^2-k^4,\qquad k=\tfrac{2\pi n}{L},
+\label{eq:ks-symbol}
+\end{equation}
+unstable at low wavenumbers and strongly dissipative at high ones. The 2D vorticity--stream-function form $\omega_t+J(\psi,\omega)=\nu\Delta\omega+f_\omega-\alpha\Delta^{-1}\omega$ (with $\hat\psi=-\hat\omega/\|\bm{k}\|^2$, $\bu=\nabla^\perp\psi$) has the linear symbol
+\begin{equation}
+\lambda(\bm{k})=-\nu\|\bm{k}\|^2-\alpha\|\bm{k}\|^{-2},
+\label{eq:ns2d-symbol}
+\end{equation}
+where $\alpha\Delta^{-1}\omega$ is the hypofriction that suppresses the 2D inverse-cascade pile-up. Stationary forcing is integrated exactly with the $\varphi_1$ function:
+\begin{equation}
+\widehat{\omega}_{t+1}=e^{\lambda(\bm{k})\Delta t}\widehat{\omega}_t+\varphi_1\!\big(\lambda(\bm{k})\Delta t\big)\,\Delta t\,\widehat f_\omega,\qquad \varphi_1(z)=\frac{e^{z}-1}{z}.
+\label{eq:phi1}
+\end{equation}
+Equation~\eqref{eq:phi1} matches the linear propagator of the data generator (contour-integral ETDRK4\cite{cox2002etdrk4,kassam2005}) term by term (numerically verified, maximal error $3\times10^{-8}$). In the vorticity--stream-function representation the divergence-free identity holds automatically; no extra projection is needed.
+
+\textbf{Dissipation-aware energy envelope}\label{sec:envelope}. For \emph{decaying flows} (3D TGV, 2D decaying), the per-step admissible interval is strict:
+\begin{equation}
+\Ex(\bu_{t+1})\in\big[\Ex(\bu_t)-c_d\,\varepsilon(\bu_t)\,\Delta t,\ \Ex(\bu_t)\big]\qquad(\text{decay, strict}).
+\label{eq:env-decay}
+\end{equation}
+A relaxed no-growth rule with slack $\gamma>0$ does not survive compounding ($\gamma=0.005$ amplifies $2.7\times$ over 200 steps), so we adopt the strict form. For \emph{driven systems} (2D Kolmogorov, KS) the energy can rebound, and we use a two-sided rate envelope instead:
+\begin{equation}
+\Ex(\bu_{t+1})\in\big[\Ex(\bu_t)-c_d\,D(\bu_t)\Delta t,\ \Ex(\bu_t)+c_p\,P(\bu_t)\Delta t\big],
+\label{eq:env-driven}
+\end{equation}
+with $P,D$ the known production and dissipation rates (identities in Section~\ref{sec:theory}). Out-of-bound outputs receive a minimal intervention---a uniform rescaling
+\begin{equation}
+\bu_{t+1}\leftarrow \alpha\,\bu_{t+1}^{\mathrm{pred}},\qquad \alpha=\sqrt{\Ex_{\mathrm{bound}}/\Ex(\bu_{t+1}^{\mathrm{pred}})},
+\label{eq:rescale}
+\end{equation}
+and the hit rate together with the mean correction $|\alpha-1|$ is logged exhaustively. The calibration protocol is uniform across systems: the $p_{99.5}$ quantile of the training-trajectory ratio $\Delta\Ex/(\mathrm{rate}\cdot\Delta t)$, multiplied by a safety factor of $1.2$.
+\emph{Two-layer implementation}. The energy mechanism is realised in two layers with disjoint roles: an internal one-sided net inside the model forward pass intervenes only against explosion (triggered when $\Ex>1.05\,\Ex(\bu_t)$; dissipation is never blocked; during training it is diagnostic-only and does not modify the output), while the strict envelope~\eqref{eq:env-decay}--\eqref{eq:rescale} is an external evaluation wrapper applied after the model forward, with the per-step $\Delta t$ passed from data timestamps. All hit rates and mean corrections reported in Results are those of the external envelope.
+
+\textbf{Soft residual learner and geometric gating}. The residual learner $\cS_\phi$ learns only the increments the anchor leaves unresolved. Fusion is driven by per-voxel error radii $\hat e_g,\hat e_l$ predicted by a \emph{supervised} error-calibration head: it takes detached encoder features and the two (detached) branch fields as input and is trained with true per-voxel error norms $\|\bu^*-\bu_{\mathrm{anchor}}\|$ and $\|\bu^*-\bu_{\mathrm{soft}}\|$ as labels, so that calibration gradients can never reshape the predictors being calibrated. The gate formulas below consume $(\hat e_g,\hat e_l)$ but contain \emph{no learnable parameters themselves}:
+\begin{equation}
+w(\bm{x})=\frac{\hat e_g(\bm{x})^{\beta}}{\hat e_g(\bm{x})^{\beta}+\hat e_l(\bm{x})^{\beta}},\qquad
+R_{\mathrm{eff}}(\bm{x})=\min\!\Big(R_{\max},\ \max\big(1.54\,\hat e_g(\bm{x}),\ 0.05\big)\Big),
+\label{eq:gate}
+\end{equation}
+\begin{equation}
+\bu_{\mathrm{fused}}=(1-w)\,\bu_{\mathrm{anchor}}+w\,\bu_{\mathrm{soft}},\qquad
+\text{s.t.}\ \|\bu_{\mathrm{fused}}-\bu_{\mathrm{anchor}}\|_{\cX}\le R_{\mathrm{eff}} .
+\label{eq:fusion}
+\end{equation}
+The complete per-step update composes the gate with the downstream operators in the fixed order of the implementation (pseudocode in SI-E):
+\begin{equation}
+\bu_{t+1}=\Pi_{E}\!\Big[\,\Pi_{\mathrm{div}}\Big(\mathrm{FiLM}\big(\bu_{\mathrm{anchor}}+\cT_R[\,w\,(\bu_{\mathrm{soft}}-\bu_{\mathrm{anchor}})\,]\big)\Big)\,\Big],
+\label{eq:update}
+\end{equation}
+where $\mathrm{FiLM}$ is the memory-bank feature-wise linear modulation (per-channel scale and shift from the memory readout; Supplementary Information), $\Pi_{\mathrm{div}}$ the spectral Leray projection~\eqref{eq:leray} active in both training and inference, and $\Pi_{E}$ the two-layer energy mechanism of Section~\ref{sec:envelope} (inference-path only; the training forward pass stops at $\Pi_{\mathrm{div}}$).
+The gating signal $s(\bm{x},t)$ is additionally exported as the discrepancy indicator (Section~\ref{sec:upi}).
+
+\textbf{Why this is not ``an FNO with hard constraints''}. The three components have legible, disjoint roles: the anchor answers \emph{what does the known physics allow} (run alone, its energy stays near the truth but rL2 $>1.5$---feasibility without accuracy); the residual learner answers \emph{what does the known physics fail to explain} (run alone, its energy drifts to $2.9\times$---free correction necessarily leaves the feasible set); the geometry gate answers \emph{how much correction is each step allowed}. Removing any single component destroys the main result (zero crashes with $1.1\%$ energy bias; Table~\ref{tab:ablation}). Components of a modular stack can be deleted one by one without fatal damage; ours cannot---that is the criterion distinguishing architecture design from stacking. Moreover, the constraints participate in the forward pass and in back-propagation: the residual learner is trained directly to predict \emph{along the boundary of the feasible set}, which is structurally different from any post-processing pipeline.
+
+\textbf{What ``architectural'' means precisely}. We call a constraint architectural if and only if all three hold: (i) it is evaluated \emph{inside} the forward pass, so every prediction the network emits has passed through it; (ii) it is (piecewise) differentiable and participates in back-propagation, so the learner is optimised \emph{through} the constraint; and (iii) it cannot be bypassed by any learnable component. Under this criterion the Leray projection and the gate truncation qualify fully (both are active in the training forward pass); a loss penalty fails (i)--(iii) outright. The dissipation envelope qualifies on (i) and (iii) but \emph{not} on (ii): it is an inference-path safety net that the training never sees, and we state this explicitly rather than blur the boundary---its role is deliberately limited to bounding the stepwise energy budget, never to reshaping the field. The position control in Table~\ref{tab:main} (the same envelope mechanism applied as pure post-processing on the trained FNO) shows why this distinction matters in practice: a hard ceiling trivially prevents blow-up in either position (zero crashes for both), but the FNO backbone, which never learned to respect any constraint, persistently drives energy upward, so the post-hoc copy must fight the backbone at nearly every step ($82\%$ of steps hit the ceiling)---pinning $E/E_0$ at $0.997$ against a truth of $0.952$ and destroying the decay physics. The anchored backbone, trained through the projection and the gate, errs on the dissipative side instead, and the embedded envelope acts as a \emph{standing dissipation governor}: it lifts the over-dissipating prediction on $91\%$ of steps and caps upward overshoots on $9\%$, so the true decay survives ($0.957$ vs $0.952$). \emph{Position determines whether a constraint is a law the model has internalised or a prosthetic that replaces the dynamics.}
+
+\textbf{Training objective}. A multi-step curriculum loss with scheduled sampling:
+\begin{equation}
+\mathcal{L}=\sum_{k=0}^{R-1}\gamma_r^{k}\,\big\|\cF_\theta^{(k)}(\bu_t)-\bu_{t+k+1}\big\|^2,\qquad R=3,\ \gamma_r=0.9 .
+\label{eq:loss}
+\end{equation}
+The loss contains \textbf{no} physical penalty term---physics is carried entirely by the architecture. This is the only difference from the loss-level arm, and constitutes the controlled contrast.
+
+\subsection{Theoretical guarantees}\label{sec:theory}
+
+We state deterministic conclusions that hold without observing the ground truth (full proofs in SI-A). We deliberately drop the optimality claim of an earlier draft---``the fused output is no worse than the better of the two branches''---because it does not follow from geometric gating; the theoretical goal shifts from \emph{who is more accurate} to \emph{why the trajectory cannot leave the feasible set}.
+
+\begin{theorem}[Divergence-free output]\label{thm:div}
+Suppose $\cH$ contains the Leray projection~\eqref{eq:leray} and every step's correction exits through the projection. Then for any input, the rollout output satisfies $\nabla\!\cdot\!\bu_{t+1}=0$ (to spectral accuracy).
+\end{theorem}
+\begin{proof}[Proof idea]
+By idempotency of the projection and the equivalence of $\bm{k}\cdot\widehat{\bu}=0$ in Fourier space (SI-A).
+\end{proof}
+
+\begin{theorem}[Dissipation compatibility]\label{thm:energy}
+With the envelope~\eqref{eq:env-decay}--\eqref{eq:rescale} active, every step's output energy in decaying flow falls exactly inside the admissible interval; the energy sequence is non-increasing and bounded below, hence convergent.
+\end{theorem}
+\begin{proof}[Proof idea]
+The scalar scaling identity $\Ex(\alpha\bu)=\alpha^2\Ex(\bu)$ plus the monotone convergence principle (SI-A).
+\end{proof}
+
+\begin{theorem}[Bounded correction]\label{thm:gate}
+Let the untruncated gated correction be $\delta(\bm{x})=w(\bm{x})\,(\bu_{\mathrm{soft}}-\bu_{\mathrm{anchor}})(\bm{x})$ with the gate weight $w(\bm{x})\in[0,1]$ of Eq.~\eqref{eq:gate}, and define the per-voxel spherical truncation operator
+\begin{equation}
+\cT_R[\delta](\bm{x})=\min\!\Big(1,\ \frac{R(\bm{x})}{\|\delta(\bm{x})\|_2}\Big)\,\delta(\bm{x}),\qquad
+R(\bm{x})=\min\!\Big(R_{\max},\ \max\big(\kappa\,\hat e_g(\bm{x}),\ r_{\min}\big)\Big),
+\label{eq:trunc}
+\end{equation}
+with $\hat e_g(\bm{x})\ge0$ the calibrated anchor-error radius of Eq.~\eqref{eq:gate}, $\kappa=1.54$, $r_{\min}=0.05$, and $R_{\max}$ a finite constant fixed before deployment (in normalized units; Methods). Then for \emph{arbitrary} network outputs, at every rollout step and every voxel $\bm{x}$,
+\begin{equation}
+\big\|\bu_{\mathrm{fused}}(\bm{x})-\bu_{\mathrm{anchor}}(\bm{x})\big\|_2\le R(\bm{x})\le R_{\max},
+\qquad\text{hence}\qquad
+\big\|\bu_{\mathrm{fused}}-\bu_{\mathrm{anchor}}\big\|_{L^2(\Omega)}\le R_{\max}\,|\Omega|^{1/2}.
+\label{eq:thm3bound}
+\end{equation}
+\end{theorem}
+\begin{proof}[Proof idea]
+Direct from the construction: $\cT_R$ is the Euclidean projection of $\delta(\bm{x})$ onto the ball of radius $R(\bm{x})$ centred at the anchor (SI-A).
+\end{proof}
+The bound~\eqref{eq:thm3bound} certifies the \emph{gate-level} output $\bu_{\mathrm{fused}}$, i.e.\ the correction before the FiLM modulation and the projections of Eq.~\eqref{eq:update}; the final emitted field inherits the divergence-free and energy certificates (Theorems~\ref{thm:div}--\ref{thm:energy}), whose operators act downstream of FiLM and therefore constrain the field that is actually emitted.
+
+\begin{corollary}[Finite-horizon boundedness, stated per system]\label{cor:bounded}
+Let the envelope and the truncation~\eqref{eq:trunc} be active at every step. Then:
+\textbf{(a) Decaying unforced systems (3D TGV, 2D decaying turbulence)}: the strict ceiling $\Ex(\bu_{t+1})\le\Ex(\bu_t)$ of Theorem~\ref{thm:energy} gives $\|\bu_t\|_{L^2}\le\|\bu_0\|_{L^2}$ for the whole horizon, and every step is divergence-free by Theorem~\ref{thm:div}. No further assumption is needed.
+\textbf{(b) Forced 2D Kolmogorov flow}: assume the forcing amplitude is bounded, $\|\bm f\|_{L^2}\le F_{\max}$ (true by construction). The production rate obeys $P(\bu)=\langle\bu\!\cdot\!\bm f\rangle\le F_{\max}\sqrt{2\Ex(\bu)}$, so the upper envelope side yields the recursion $\Ex_{t+1}\le\Ex_t+c_pF_{\max}\sqrt{2\Ex_t}\,\Delta t$, and a discrete Gr\"onwall step gives the finite-horizon bound
+$\sqrt{\Ex_K}\le\sqrt{\Ex_0}+\tfrac{c_pF_{\max}K\Delta t}{\sqrt{2}}$.
+\textbf{(c) Kuramoto--Sivashinsky}: the non-expansive-anchor assumption is \emph{not} available here (the linear symbol~\eqref{eq:ks-symbol} is unstable at low $k$) and we do not use it. Instead the production--dissipation identity~\eqref{eq:ks-budget} on the resolved grid ($|\bm k|\le k_{\max}$) gives $P(u)=\langle u_x^2\rangle\le 2k_{\max}^2\Ex(u)$, hence
+$\Ex_K\le\Ex_0\,\big(1+2c_pk_{\max}^2\Delta t\big)^{K}$---exponential in $K$ but finite for every finite horizon: finite-time blow-up is excluded.
+\end{corollary}
+
+\begin{remark}
+Theorem~\ref{thm:energy} guarantees \emph{feasibility}, not \emph{accuracy}: the envelope does not force dissipation to occur on schedule (the measured $\varepsilon(t)$ shows a delayed-release profile, reported honestly in Section~\ref{sec:fidelity}). This is precisely why the theoretical target moved from optimality to feasibility.
+\end{remark}
+
+\begin{remark}[Scope of the guarantees]
+None of Theorems~\ref{thm:div}--\ref{thm:gate} says anything about accuracy, and we do not pretend otherwise: like CFL conditions or energy-stable time integrators in classical numerics, they are \emph{stability certificates} whose role is to exclude one failure class (blow-up divergence) by construction. Nor is the content circular: the non-trivial statement is not ``a truncated correction is bounded'' but that the \emph{composition} of an arbitrary neural network with these operators inherits the bounds constructively, with hypotheses (projection idempotency, scalar scaling, bounded forcing amplitude, a resolved wavenumber ceiling) that are checkable without analysing the network. The accuracy question is empirical and is answered in Results; the stability question is settled structurally here. Separating the two is the point of the section.
+\end{remark}
+
+\textbf{Energy budget identities (the physical basis of the envelopes)}. The envelope boundaries are fixed by the exact energy identity of each equation. For \textbf{KS}, multiplying $u_t=-uu_x-u_{xx}-u_{xxxx}$ by $u$ and averaging over the periodic domain kills the nonlinear term by parts, giving
+\begin{equation}
+\frac{\mathrm{d}\Ex}{\mathrm{d}t}=\underbrace{\langle u_x^2\rangle}_{P\ (\text{production})}-\underbrace{\langle u_{xx}^2\rangle}_{D\ (\text{dissipation})},\qquad \Ex=\tfrac12\langle u^2\rangle .
+\label{eq:ks-budget}
+\end{equation}
+For \textbf{2D NS in vorticity form}, the Jacobian term conserves energy and
+\begin{equation}
+\frac{\mathrm{d}\Ex}{\mathrm{d}t}=-2\nu Z+\inner{\bu}{\bm f}-2\alpha\Ex_{\mathrm{low}},\qquad
+\frac{\mathrm{d}Z}{\mathrm{d}t}=-\nu\langle\|\nabla\omega\|^2\rangle+\langle\omega f_\omega\rangle-\alpha(\text{low-mode term}),
+\label{eq:ns2d-budget}
+\end{equation}
+where $Z=\tfrac12\langle\omega^2\rangle$ is the enstrophy. In decaying flow ($\bm f{=}0,\alpha{=}0$) energy and enstrophy both decay monotonically---2D offers one more hard constraint than 3D, which we exploit as a diagnostic. For \textbf{3D incompressible NS}, $\mathrm{d}\Ex/\mathrm{d}t=-\varepsilon(\bu)$, the physical source of Eq.~\eqref{eq:env-decay}; the calibration constant absorbs discretisation, unresolved subgrid dissipation, and---diagnosed on our own backbone---the order-of-magnitude inflation of the dissipation estimate $\hat\varepsilon=\nu\langle|\bm\omega|^2\rangle$ when it is evaluated on the learned field (whose high-wavenumber content exceeds the truth); calibrated once on early-time training-trajectory initial conditions, this gives $c_d{=}0.1$.
+
+\subsection{A controlled protocol for long-horizon comparison}\label{sec:setup}
+
+Fair comparison is itself part of the methodology. \textbf{Every compared model is retrained under an identical protocol}: same data split, same training budget, same optimiser, same rollout curriculum---the only experimental variable is \emph{where the physics is placed}. Three arms per system: (i) \textbf{anchor}: architecture-level physics (anchor $+$ envelope $+$ gate); (ii) \textbf{loss-level}: the same network trained with $\mathcal{L}_{\mathrm{MSE}}+0.1\,\mathcal{L}_{\mathrm{PDE\ residual}}$; (iii) \textbf{none}: purely data-driven. Parameter counts are strictly matched (3D $5.10$M; 2D $1.19$M; 1D $0.29$M; the anchor adds zero parameters). External baselines---FNO (official implementation\cite{kossaifi2024library}), DPOT\cite{hao2024dpot}, U-Net\cite{ronneberger2015}, FNO with physics regularisation---are retrained under the same protocol as the 3D backbone; PhysicsCorrect\cite{huang2025physicorrect}---whose official release covers only 2D Navier--Stokes, wave and KS settings, with correction cost scaling quadratically in grid size---has no official 3D implementation, so it is approximately reproduced on our 3D backbone and labelled as such; Transolver\cite{wu2024transolver} diverged under the same protocol (its fp32 fallback also exceeded the pre-set time budget) and was abandoned by a pre-registered rule, with DPOT satisfying the ``at least one recent method'' requirement. Datasets, generators and verification discipline are detailed in Methods; the crash criteria are given in Table~\ref{tab:crash}. A claim of ``zero crashes'' is meaningful only under strict criteria: a previous internal baseline line reported zero crashes under a lenient rL2${}>10$ threshold, where a one-sided $1.05\times$ anti-blow-up net compounded over 200 steps into an effective $1.7\times10^{4}$ energy ceiling---no constraint at all.
+
+\begin{table}[htbp]
+\centering\small
+\caption{\textbf{Crash criteria and rationale}. Post-crash metrics are frozen-filled to step $K$ to avoid survivorship bias.}
+\label{tab:crash}
+\begin{tabular}{lll}
+\toprule
+Criterion & Threshold & Rationale \\
+\midrule
+Non-finite value & NaN/Inf & Numerical blow-up \\
+Relative $L_2$ error & $>5$ & Field corruption \\
+Energy ratio $E/E_0$ & $>5$ & Energy explosion \\
+Post-crash handling & Frozen filling & Avoids survivorship bias \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Evaluation conventions}. rL2 is computed in physical space (after de-normalisation); $K\in\{1,10,50,100,200\}$; $20$ independent test trajectories on the main system (the three principal model families---ours, FNO, anchored-FNO---under $5$ seeds each, i.e.\ $100$ rollouts; the remaining arms under one seed, $20$ rollouts), 5 ICs in-domain for 2D, 3 ICs for OOD; envelope interventions are logged exhaustively; every long-horizon comparison reports the triple (rL2, $E/E_0$, crash rate); per-IC raw curves are released with the code. \textbf{Uncertainty quantification of the numbers themselves}: 95\% confidence intervals are $t$-intervals from the per-rollout standard deviation, and crash rates carry Wilson score intervals; a $0/100$ crash count has a Wilson 95\% upper bound of $0.04$ ($0/20$: $0.16$), so our stability claims are stated as ``no crash observed under $n$ independent trajectories'' rather than ``crash probability zero''. All conclusions reported below rest on effect sizes that exceed the corresponding intervals by at least an order of magnitude (energy explosion $5.1\times$, dissipation-rate destruction), with one exception stated explicitly: at long horizon the approximate PhysicsCorrect reproduction attains \emph{lower} pointwise error than our model (rL2@200 $0.962$ vs $1.135$)---we do not claim pointwise superiority there; the decisive contrast against the post-hoc position is the energy history and the dissipation profile ($33\%$ of its steps re-create energy in a decaying flow), not the pointwise gap.
+
+\subsection{Main benchmark: divergent long-horizon fates from one initial condition}\label{sec:main}
+
+Figure~\ref{fig:fig1} contrasts the three positions where physics can live in a learned surrogate---in the training loss, after the network, or on the inference path---and shows their divergent long-horizon fates on matched backbones. Figure~\ref{fig:fig2} shows the long-horizon fate bifurcation: the official FNO blows up at $k\approx131$, the physics-regularised FNO at $k\approx99$, while our model tracks the true energy trajectory throughout.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/fig1_concept_architecture.pdf}
+\caption{\textbf{Where physics lives determines whether it holds}. Three positions for embedding physics into a learned autoregressive surrogate, illustrated on 3D Taylor--Green vortex rollout (Re$=6400$, mean over $20$ independent test trajectories; ours: $5$ seeds). Top row: inference-path schematics---dashed arrows mark couplings that can be bypassed at inference, solid arrows mark constraints enforced on the forward pass. Bottom row: energy ratio $E/E_0$ (left axes; dashed black $=$ DNS truth) and relative L2 error (dotted, right axes). (a) \emph{Loss level---a suggestion}: physics lives only in the training objective, so the rollout path carries no constraint and FNO$+$PhysReg blows up (first crash $k{=}96$ in all $20$ rollouts). (b) \emph{Post-hoc---a patch}: an a-posteriori corrector (approximate PhysicsCorrect reproduction\cite{huang2025physicorrect} on the same FNO backbone) acts outside the learned map; the energy history is distorted---over-damped to $0.73$ at $k{=}134$, then energy re-created on $33\%$ of the remaining steps ($0.91$ at $k{=}200$, truth $0.952$)---while the pointwise error keeps growing. (c) \emph{Inference path (ours)---a law}: the anchor, geometry gate and dissipation envelope sit on the forward pass itself, so every step re-enters the feasible set by construction; energy tracks the truth ($0.957\pm0.005$, zero crashes in $100$ rollouts). The post-hoc arm attains lower pointwise error at long horizon (dotted overlay)---physical fidelity and pointwise accuracy decouple, the central trade-off analysed below.}
+\label{fig:fig1}
+\end{figure}
+
+\begin{table}[htbp]
+\centering\small
+\caption{\textbf{Main long-horizon benchmark} (3D TGV, Re$=6400$, $K{=}200$, $20$ independent test trajectories, mean$\pm$std). Ours, FNO and the anchored-FNO ablation are evaluated under $5$ seeds ($100$ rollouts); the remaining arms under one seed ($20$ rollouts). Truth: $E/E_0$ at $K{=}200$ is $0.9518$. All models are retrained under the identical protocol (Section~\ref{sec:setup}); the only experimental variable is where the physics is placed.}
+\label{tab:main}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lccccccc@{}}
+\toprule
+Model & Params & rL2@50 & rL2@100 & rL2@200 & $E/E_0$@200 & Crashes & ms/step \\
+\midrule
+\textbf{RCLN (ours)} & 5.10M & $0.982$ & $1.064$ & $1.135\pm0.037$ & $\bm{0.957\pm0.005}$ & $\bm{0/100}$ & 64.9 \\
+FNO (official) & 6.70M & $0.934$ & $1.693$\textsuperscript{*} & $1.693$\textsuperscript{*} & $5.104$ & $100/100$ & 58 \\
+U-Net & 6.32M & $0.369$ & $0.805$ & $1.195$ & $0.625$ & $0/20$ & 42 \\
+DPOT (recent) & 10.82M & $1.116$ & $1.381$ & $1.447$ & $1.533$ & $0/20$ & 16 \\
+FNO$+$PhysReg & 6.70M & $0.392$ & $2.196$\textsuperscript{*} & $2.196$\textsuperscript{*} & $5.076$ & $20/20$ & 70 \\
+PhysicsCorrect (approx.) & 6.70M & $\bm{0.266}$ & $\bm{0.503}$ & $\bm{0.962}$ & $0.914$ & $0/20$ & 74 \\
+FNO$+$post-hoc envelope & 6.70M & $0.293$ & $0.946$ & $1.385$ & $0.997$ & $0/20$ & 74 \\
+\midrule
+\emph{Explicit spectral step (counterfactual)} & 0 & $0.057$ & $0.143$ & $0.773$ & $0.947$ & $0/3$ & --- \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}
+\begin{minipage}{\linewidth}\footnotesize
+\textsuperscript{*}Frozen-filled after crash (post-crash metrics are held at the crash-step value to avoid survivorship bias; FNO's rL2@50 is measured pre-crash). Bold rL2: best among non-crashing learned models; bold $E/E_0$ and crash count: closest to the truth $0.9518$ and largest no-crash sample. The final row is not a learned model but the explicit pseudo-spectral step of the governing equations (RK4, one substep per frame, $3$ test trajectories)---a deliberately uncomfortable counterfactual analysed in Section~\ref{sec:explicit}: with fully known physics at matched resolution it dominates every learned row, which is precisely why the learned components of our architecture target the regimes where such a step degrades or is unavailable. $0/100$ crashes correspond to a Wilson 95\% upper bound of $0.04$ per trajectory ($0/20$: $0.16$). The last row is a position control: the \emph{same} envelope mechanism applied as pure post-processing on the trained FNO---crashes are capped, but $82\%$ of steps hit the ceiling, the decay dynamics is destroyed ($E/E_0$ pinned at $0.997$ against the truth $0.952$), and rL2@200 degrades relative to the embedded position. The approximate PhysicsCorrect reproduction attains the lowest pointwise error but violates the one-sided dissipation budget on $33\%$ of steps (energy re-created in a decaying flow; ours: $4\%$, all mild); its end-point energy $0.914$ results from partial cancellation of an over-damped first half ($0.727$ at $k{=}134$) by subsequent energy re-creation.
+\end{minipage}
+\end{table}
+
+\textbf{Energy fidelity}: ours (5.10M parameters, trained 100 epochs with the $R{=}3$ rollout curriculum of Eq.~\eqref{eq:loss} on a single RTX 5070 GPU, envelope constant $c_d{=}0.1$ calibrated once on early-time training-trajectory initial conditions) reaches $E/E_0=0.957\pm0.005$ at $K{=}200$---within $0.6\%$ of the truth $0.9518$, over $100$ rollouts with zero crashes (Wilson 95\% upper bound $0.04$)---the only model that neither amplifies energy (FNO family: $5.1\times$ explosion) nor over-dissipates (U-Net: $0.625$). \textbf{Accuracy}: we do not claim pointwise superiority at long horizon. The approximate PhysicsCorrect reproduction attains the lowest rL2 at every reported checkpoint ($0.266/0.503/0.962$); ours reaches $1.135$ at $K{=}200$, deep in the decorrelated regime where rL2 measures phase coincidence rather than physical fidelity. The two profiles differ in kind: PhysicsCorrect's energy history dips to $0.727$ at $k{=}134$ and then re-creates energy on $33\%$ of the remaining steps---in a decaying flow whose energy must decrease monotonically---while ours violates the one-sided dissipation budget on only $4\%$ of steps, all mild in magnitude. \textbf{Error-growth dynamics}: the first-crash steps of FNO (median $k{=}65$, range $47$--$79$, $100/100$ rollouts) and of FNO$+$PhysReg ($k{=}96$ in all $20$ rollouts) are tightly clustered---not gradual degradation but threshold-crossing blow-up, consistent with the mechanism ``missing constraint $\to$ high-wavenumber energy pile-up $\to$ aliasing instability''. U-Net deserves a separate note: zero crashes and a competitive rL2@200 ($1.195$) look robust, but its energy falls to $62.5\%$---its ``stability'' is bought by dissipating itself into a low-energy state, visible only if the energy budget is reported. \textbf{Cost}: $+12\%$ single-step inference time relative to the FNO backbone ($58\to65$ ms), zero extra parameters.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/fig2_tgv_main.pdf}
+\caption{\textbf{Main 3D TGV results} (Re$=6400$, $20$ independent test trajectories; ours and FNO under $5$ seeds). (a) Survival curves (annotations mark first-crash steps: FNO median $k{=}65$, range $47$--$79$; FNO$+$PhysReg $k{=}96$ in all rollouts). (b) Energy trajectory $E(t)/E_0$ against truth; the grey band is the stepwise physically feasible interval of Theorem~\ref{thm:energy} with the recalibrated constant $c_d{=}0.1$ (inset: zoom of $k{=}150$--$200$); the FNO-family trajectories leave the band at their annotated first crashes. (c) rL2$(k)$ with standard-deviation band (logarithmic axis). (d) Dissipation rate $\varepsilon(t)$ (truth computed from $-\mathrm{d}E/\mathrm{d}t$). Post-crash states are non-finite; curves are held at their last finite value for display.}
+\label{fig:fig2}
+\end{figure}
+
+\subsection{The anchor should be the law: an explicit-operator counterfactual}\label{sec:explicit}
+
+The architecture of Section~\ref{sec:arch} embeds physics on the inference path, but one component still sits uneasily with the ``law'' rhetoric: the anchor itself is \emph{learned}. A learned anchor is trained with a prediction loss, and nothing pins it to physics---in an earlier checkpoint lineage we observed the anchor drift to anti-correlation with the truth (cosine $-0.914$), a pathology that only a later realignment protocol repaired. We therefore asked the radical question: if the governing equations are known, why should a network re-learn them? We replaced the learned anchor with a \textbf{zero-parameter explicit pseudo-spectral Navier--Stokes step} (RK4, $2/3$ dealiasing, Leray projection, one substep per frame, $\nu=1/6400$) and probed it against the learned anchor on identical inputs.
+
+The result is unambiguous. Single-step, on unseen test initial conditions: relative L2 error $0.016$ (explicit) versus $0.143$ (learned anchor); on training pairs the explicit step is machine-exact, because it shares its numerics with the data generator. Long horizon ($K{=}200$, three independent test trajectories): the explicit stepper alone reaches rL2 $0.057/0.143/0.773$ at $k{=}50/100/200$ with $E/E_0{=}0.947$ (truth $0.9518$) and zero crashes---\emph{dominating every learned model in Table~\ref{tab:main} on every metric simultaneously}. We report this counterfactual deliberately, although it is uncomfortable: at matched resolution with fully known physics, the explicit step \emph{is} the cheap solver, and no learned component can beat it pointwise. The learned surrogate must therefore earn its place exactly where the explicit step degrades or is unavailable: under-resolved grids, larger time steps, partially known physics, or real-world data violating the solver's preconditions. The last case is measurable in our own testbed: on JHTDB isotropic-turbulence cutouts (Re$_\lambda{=}433$) the spectral preconditions fail outright---the subvolume is non-periodic (boundary jumps $2.5$--$4\times$ the local increment scale) and the explicit step diverges within two steps---while the forcing term of stationary HIT is not analytically available at all. These observations delineate the applicability boundary of an explicit-law anchor and complete the architecture: \emph{the law, written exactly, supplies the ideal point and the ideal range; the learnable components exist to close the gap between ideal and reality}---the learned closure (formerly the soft branch) corrects under-resolution and missing terms, and the geometry gate bounds how far that correction may be trusted.
+% [V8-EVAL-PENDING] v8 (explicit anchor + learned closure + shaped gate) 训练完成后在此补主表行与评测段
+
+\subsection{The shape of the boundary, not its size}\label{sec:shape}
+
+The geometry gate defines, at every voxel, a trust region for the learned correction---the \emph{cognitive boundary} of the model. Two designs are possible: enlarge the boundary, or reshape it. We tested both, at zero training cost, on the deployed model. \textbf{Size}: the scalar trust-radius cap $r_{\max}{=}5.0$ binds on only $0.7\%$ of voxels during 200-step rollouts (the radius self-expands from $0.36$ to $1.74$ as predicted error grows), and enlarging the budget---doubling or tripling the calibration scale, or raising the cap to $10$---changes rL2@200 by less than $0.5\%$. The isotropic ball is not too small. \textbf{Shape}: the correction's reliability is strongly anisotropic in spectral space (the learned field's high-wavenumber content is inflated by an order of magnitude), so we replaced the scalar radius by a per-band trust profile $R(k)$, calibrated from the anchor's own per-band one-step error on 24 training samples---the same self-supervised signal as the scalar path, no labels, no retraining; an outer hard ball $r_{\max}$ preserves Theorem~\ref{thm:gate}. The anisotropic boundary improves rL2 by $35\%$ at $k{=}50$, $27\%$ at $k{=}100$ and $18\%$ at $k{=}200$ ($1.170\to0.960$, now matching the strongest post-hoc baseline) with zero crashes. The boundary is also alive in physical space: it concentrates on coherent structures (Pearson $r$ between $R_{\mathrm{eff}}$ and the predicted vorticity magnitude $0.48/0.35/0.32$ at $k{=}25/50/100$; median on-structure $R_{\mathrm{eff}}$ $2.6$--$2.8$ versus background $0.9$--$1.4$) and deforms with them (Fig.~\ref{fig:gate3d}). Expanding a boundary of the wrong shape achieves nothing; reshaping it is where the accuracy was hiding.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_gate3d.pdf}
+\caption{\textbf{The cognitive boundary lives on coherent structures and deforms with them}. Vorticity-magnitude isosurfaces of the model's own predicted field (pooled p90 threshold, identical across panels) at rollout depths $k{=}25/50/100$ (3D TGV, Re$=6400$, test trajectory), coloured by the per-voxel trust radius $R_{\mathrm{eff}}$ measured on the forward pass (plasma; shared colour scale). The mean trust radius self-expands as predicted error accumulates ($\langle R_{\mathrm{eff}}\rangle = 1.31 \to 1.69 \to 1.75$), and the boundary tracks the vortex filaments (per-panel Pearson $r(|\bm\omega|, R_{\mathrm{eff}}) = 0.48/0.35/0.32$; on-structure median $R_{\mathrm{eff}}$ $2.6$--$2.8$ versus background $0.9$--$1.4$): the region where the model grants itself freedom to correct is the region where the dynamics is being written.}
+\label{fig:gate3d}
+\end{figure}
+
+\subsection{Component dissection: necessary for the joint profile, not for rL2 alone}\label{sec:ablation}
+
+\begin{table}[htbp]
+\centering\small
+\caption{\textbf{Ablation and diagnosis summary} (3D TGV, $K{=}200$). Ablation arms were evaluated under the previous 10-initial-condition protocol with the earlier checkpoint lineage (truth $E/E_0{=}0.9416$); re-evaluation of all ablation arms under the 20-trajectory protocol of Table~\ref{tab:main} is on the supplementary agenda (Limitations).}
+\label{tab:ablation}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lcccc>{\raggedright\arraybackslash}p{4.6cm}@{}}
+\toprule
+Ablation arm & rL2@100 & rL2@200 & $E/E_0$@200 & Crashes & Conclusion \\
+\midrule
+\textbf{Full (anchor$+$envelope$+$gate)} & $\bm{0.4670}$ & $1.0237$ & $\bm{0.9314}$ & $0/10$ & --- \\
+No envelope & $0.4570$ & $\bm{0.9660}$ & $0.8192$ & $0/10$ & Envelope cuts max energy bias $14.7\%{\to}1.0\%$ \\
+Anchor only (no soft branch) & $1.5337$ & $1.5488$ & $0.9803$ & $0/10$ & Feasibility, not accuracy \\
+No geometric gate & $1.2943$ & $1.5282$ & $2.8582$ & $0/10$ & Gate is necessary for stable fusion \\
+Soft branch, joint training (v2 line) & $0.6378$ & $0.8986$ & $0.9163$ & $0/10$ & Second-best accuracy, good energy fidelity \\
+Sparse gate gate90 & $0.5817$ & $0.7754$ & $0.5558$ & $0/10$ & Over-dissipative false stability ($-44\%$ energy) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The ablation profile confirms the role division of Section~\ref{sec:arch}: the anchor guarantees feasibility without accuracy (anchor-only arm: rL2 $>1.5$, energy $0.980$); a freely learned correction necessarily leaves the feasible set (no-gate arm: energy $2.86\times$); the gate establishes a per-voxel trust allocation between the two. We state the scope of ``necessary'' precisely: judged by rL2 alone at $K{=}200$, two ablated arms score \emph{better} than the full model (no-envelope $0.966$, joint-trained soft branch $0.899$ vs $1.024$)---at $K{=}200$ all three are deep in the decorrelated regime, so rL2 there measures phase coincidence, not physical fidelity. The necessity claim concerns the \emph{joint} profile---zero crashes $\wedge$ energy fidelity $\wedge$ short/mid-horizon accuracy---which no ablated arm reproduces: the no-envelope arm's maximal pointwise energy deviation is $14.7\%$ (vs $1.0\%$), and the soft-branch-only arm's existence proof for the role of the anchor is its own row in Table~\ref{tab:ablation}. Stress tests (M3) show that the constrained path absorbs out-of-distribution perturbations of $8\times$ amplitude without propagating an explosion; under injected high-frequency noise the gating signal rises transiently at the injection step and the fusion weight tilts automatically toward the anchor---a structural consequence of geometric gating, not a learned memory. Learned or global gate variants have equal or larger parameter counts and worse stability, so the stability originates from the \textbf{position and form} of the constraint, not from capacity. \textbf{Envelope intervention profile}: 2D in-domain floor $0.8\%$/ceil $0\%$ (silent); Re-OOD $1.7\%$/$3.0\%$ (lightly engaged); decaying-OOD floor $3.8\%$/ceil $95.2\%$ (standing guard); $128^2$ only $0.67\%$---yet exactly covering the trajectories on which the no-envelope arm crashed, the ``rare but critical'' signature of a safety net; the $100\%$ intervention rate on KS $L{=}44$ is a crutch profile, which we deliberately flag as a boundary (Section~\ref{sec:ood}).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/fig3_ablation_mechanism.pdf}
+\caption{\textbf{Mechanism dissection and cost}. (a) One fused inference step: anchor $\to$ residual $\to$ geometry gate $\to$ trust-radius clipping, with the per-step guarantees of Theorems~\ref{thm:div}--\ref{thm:gate}. (b) Hard-vs-soft ablation: rL2@100 versus $E/E_0$ at $K{=}200$ for the ablation arms (our model is the star; the dashed line marks the truth $E_{200}{=}0.9416$ of the previous 10-IC protocol under which the ablation arms were evaluated)---the rL2--energy decoupling is visible directly: arms with similar rL2 span opposite energy fates. (c) Cost--accuracy Pareto (marker size $\propto$ parameter count). (d) False versus true stability: the gate90 arm's vorticity PDF at $k{=}200$ is over-dissipative with damped tails ($E/E_0{=}0.56$), while ours matches the truth ($0.93$ vs $0.94$).}
+\label{fig:fig3}
+\end{figure}
+
+\subsection{Cross-system generality}\label{sec:ood}
+
+\emph{System snapshots} (uniform template: physics $\to$ setup $\to$ headline result). \textbf{System A, 3D Taylor--Green (Re$=6400$)}: viscous decay of interacting vortex rings---the test of energy-budget fidelity; $64^3$ pseudo-spectral data, 10 test ICs, $K{=}200$; the anchored model ends at $E/E_0{=}0.93$ against the truth $0.94$, while every baseline either explodes or over-dissipates. \textbf{System B, 2D Kolmogorov}: statistically stationary forced-dissipative turbulence---the test of production--dissipation balance rather than decay; $64^2$ contour-integral ETDRK4 data, 5 in-domain ICs plus Re/regime/resolution OOD; the architectural arm is the only arm with zero crashes in all four scenarios. \textbf{System C, 1D Kuramoto--Sivashinsky}: chaotic spatiotemporal dynamics with an unstable linear symbol---the test of guarantees that cannot rely on a contractive anchor; $L\in\{22,32,44\}$; the anchor arm wins in-domain and at $L{=}22$, and loses honestly at $L{=}44$, where the envelope degenerates into permanent intervention.
+
+\begin{table}[htbp]
+\centering\footnotesize
+\caption{\textbf{Generality and out-of-distribution (OOD) summary} ($K{=}200$). Three arms under the isomorphic protocol with matched parameter counts.}
+\label{tab:ood}
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\linewidth}{@{}l>{\raggedright\arraybackslash}p{2.7cm}*{3}{>{\raggedright\arraybackslash}X}@{}}
+\toprule
+System & Scenario & anchor (architectural) & loss-level & none (data-only) \\
+\midrule
+\multirow{4}{*}{\shortstack[l]{System B\\2D Kolmogorov\\(Re$\approx$1760)}}
+ & In-domain (5 ICs) & $E{=}1.10$, \textbf{0 crashes} & $E{=}3.46$, 20\% crashes & $E{=}1.05$, 0 crashes \\
+ & Re OOD ($\times2.2$) & $E{=}0.957$, \textbf{0 crashes} & $E{=}3.57$ & $E{=}0.969$ \\
+ & Regime OOD (decaying, $f{=}0$) & $\bm{E{=}0.941}$, 1/3 crashes & 2/3 crashes & $E{=}0.227$, over-dissipative \\
+ & Resolution OOD ($64^2{\to}128^2$) & rL2${=}1.299$, \textbf{0 crashes} & 1/3 crashes & rL2${=}1.356$ \\
+\midrule
+\multirow{3}{*}{\shortstack[l]{System C\\1D KS\\(chaotic)}}
+ & In-domain $L{=}32$ (5 ICs) & $\bm{\mathrm{rL2}}{=}0.015$, 0 crashes & rL2${=}0.429$ & rL2${=}1.178$ \\
+ & Length OOD $L{=}22$ & $\bm{\mathrm{rL2}}{=}0.124$, $E{=}1.005$ & rL2${=}1.202$ & rL2${=}1.049$ \\
+ & Length OOD $L{=}44$ & 0 crashes (envelope 100\% active) & $\bm{\mathrm{rL2}}{=}0.870$ & rL2${=}1.180$ \\
+\midrule
+System A & Re OOD (3200/1000) & \multicolumn{3}{l}{Accuracy essentially in-domain (zero training transfer)} \\
+(3D TGV backbone) & Regime OOD (JHTDB HIT) & \multicolumn{3}{l}{Honest failure: energy collapse ($E/E_0{=}0.11$ at step 1); see Discussion} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Three regularities hold across systems (Fig.~\ref{fig:fig4}). \textbf{(i) The inference-path envelope is the most robustly transferable component}: silent in-domain ($<1\%$), it activates precisely at OOD boundaries and prevents crashes (KS $L{=}44$: $3/3{\to}0/3$; 2D decaying: $3/3{\to}1/3$ with $E/E_0$ pulled back from $7.7$ to $0.94$; $128^2$: $1/3{\to}0/3$), with zero recalibration across systems and resolutions. \textbf{(ii) Loss-level physics fails consistently}: on neither external system does it improve long-horizon stability (2D in-domain: $3.46\times$ energy explosion plus 20\% crashes; KS in-domain: rL2 worse by $29\times$)---direct negative evidence for the core claim. \textbf{(iii) Boundaries are honestly marked}: KS $L{=}44$ is the only scenario where loss-level physics wins (the anchor's calibration does not cover the larger attractor and the envelope degenerates into permanent intervention); the JHTDB 3D regime-OOD collapses energetically. These define the method's boundary: the envelope is a safety net, not a substitute for an anchor calibrated to cover the target attractor.
+
+\textbf{Structural explanation of zero-shot super-resolution}. That the anchor arm loses nothing in the $64^2{\to}128^2$ transfer (rL2@200 from $1.392$ to $1.299$) is no accident: the anchor's linear propagator $\lambda(\bm{k})$ is a grid-independent analytic function and is rebuilt exactly on the new grid at zero cost (verified at $3\times10^{-8}$); the soft branch's spectral convolution carries only low-wavenumber corrections, and the newly resolved high-wavenumber dynamics is natively covered by the anchor's exact viscous decay. In other words, \textbf{the resolution degree of freedom falls precisely inside the jurisdiction of the known physics}---a structural dividend of hard-coding the linear operator. The data-only arm's cross-resolution generalisation (rL2 $1.356$), by contrast, rests on the accidental benignity of spectral truncation. We also flag the dual risk honestly: if the OOD shift also raised the forcing wavenumber $k_f$, the soft branch's low-wavenumber truncation could become the bottleneck (not exposed by the present protocol).
+
+\textbf{PhysicsSpec switching as a generality test}. In the 2D decaying-turbulence scenario ($f{=}0,\alpha{=}0$) the anchor arm's anchor parameters are read from the data attributes and switched accordingly---the conditional reflexes learned in training never saw the no-forcing case, yet after the physics-specification switch the anchor is immediately correct: the envelope's ceil hit rate of $95.2\%$ substitutes for the vanished forcing input, compressing the no-envelope arm's $100\%$ crash rate to $33\%$ and pulling the energy from $7.7$ back to $0.94$. This is the most direct demonstration of ``one architectural principle, different PhysicsSpecs'': generalisation comes not from covering the training distribution, but from the fact that \textbf{physical knowledge itself is a replaceable module}.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/fig4_cross_system.pdf}
+\caption{\textbf{Cross-system generality}. Final-state comparison across six scenarios (3D TGV, 2D Kolmogorov, 1D KS; in-domain and OOD): (a) energy ratio $E/E_0$ at the final step; (b) relative $L_2$ error at the final step. Colours encode the system (red $=$ 3D, blue $=$ 2D, green $=$ 1D); crashed arms carry black-edged hatching; bars exceeding the axis are truncated with the true value annotated; the dashed line marks the ideal $E/E_0{=}1$ (DNS truth $0.9416$ for 3D in-domain) and the dotted line rL2${=}1$. The 3D OOD panel covers the three arms available for Re$=3200$ and ends at $K{=}100$; all other scenarios run to $K{=}200$.}
+\label{fig:fig4}
+\end{figure}
+
+\subsection{Physical fidelity beyond pointwise error}\label{sec:fidelity}
+
+Long-horizon stability bought by over-dissipation is worthless. On multi-time energy spectra $E(k)$ (Fig.~\ref{fig:fig5}a) our model shows no excessive smoothing at high wavenumbers (FNO already deviates visibly at $k{=}50$); on the enstrophy trajectory and the vorticity PDF at $k{=}200$ our backbone stays closest to the truth; the gate90 ablation arm exposes an intermittency artefact with vorticity kurtosis $80.8$---pure gate sparsification concentrates energy into isolated coherent structures; the divergence violation stays within projection accuracy throughout (truth reference $1.3\times10^{-5}$). Turbulent intermittency lives in the heavy tails of the vorticity distribution: the data-only and over-dissipative arms shrink toward Gaussian (intermittency dies), gate90 goes to the opposite extreme (spurious intermittency), and our model (jointly trained soft branch $+$ envelope) nearly coincides with the truth---the hard anchor preserves the geometry of small-scale dissipation while the soft branch learns the generating mechanism of intermittent structures inside the feasible set. Full curves of the structure function $S_2(r)$ and scale-resolved velocity-increment skewness/kurtosis appear in the Supplementary Information, with consistent conclusions: ours is the only arm that passes all three layers of statistical tests---energy, spectrum and distribution. A known artefact is reported as-is: the envelope's $\varepsilon(t)$ shows a delayed-release profile (it constrains the energy but does not force dissipation to happen early).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/fig5_turbulence_physics.pdf}
+\caption{\textbf{Turbulence physics statistics}. (a) Multi-time energy spectra $E(k)$ against truth. (b) Vorticity PDF at $k{=}200$ (3 ICs; the tails correspond to vortex cores). (c) Divergence violation (logarithmic axis; truth reference $1.3\times10^{-5}$, i.e.\ Theorem~\ref{thm:div} holds to DNS precision). (d) Enstrophy trajectory (small-scale content).}
+\label{fig:fig5}
+\end{figure}
+
+\subsection{An emergent, zero-cost discrepancy signal}\label{sec:upi}
+
+The geometric gate's discrepancy signal $s(\bm{x},t)$ was never trained with ground-truth error labels and has three zeros: zero error labels, zero extra parameters, zero extra forward passes (Fig.~\ref{fig:fig6}). Tested under the pre-registered U1--U5 protocol (3D TGV, $K{=}100$, 10 ICs): \textbf{U1} Pearson correlation with the true per-voxel error $0.52$ (mean at $k{=}100$); \textbf{U2} top-$q\%$ error detection AUROC $=0.786$ (AUPRC $=0.435$, $4.4\times$ the base rate); \textbf{U3} binned-calibration dynamic range $13\times$; \textbf{U4} stable across Reynolds numbers (Re$=3200$: $0.786$; Re$=1000$: $0.675$) but collapses across flow regimes (JHTDB $0.583$, triggering the naming rule of the transparency note below); \textbf{U5} MC-dropout needs $100$ stochastic forward passes to reach AUROC $0.818$; the geometric signal reaches $0.786$ at $1/100$ of the cost. \textbf{Zero-shot cross-backbone transfer}: the trained soft branch, grafted onto a frozen backbone in read-only signal mode (no training, no fusion), carries error detection along (in-domain AUROC $0.805$; Re$=1000$ $0.752$) without degrading backbone accuracy (rL2@100 $=0.457$, identical to native). Reverse ablations establish the mechanism: fusion-mode injection adds energy and is harmful at long horizon ($E/E_0\approx2.0$ at $K{=}200$), and its inflated AUROC is a self-fulfilling artefact; a post-hoc external soft branch halves the one-step error but degrades every long-horizon metric (rL2@100 $0.722$ vs $0.457$). \textbf{Spatial physics of the signal}: from $k\ge10$ onward, high-signal regions coincide spatially with high true-error regions, concentrating at vortex-filament stretching and shear-layer interfaces---coherent structures where local stretching is largest and errors accumulate first; the weak signal at $k{=}1$ is real physics (the backbone's one-step error is nearly spatially uniform); boundary artefacts affect AUROC by $<0.04$. Because the signal \emph{grows with the physical process}, it is a testable, reproducible and physically explainable error diagnostic---not another activation map.
+
+\emph{Naming and transparency}. Because the signal fails our pre-registered calibration criterion under flow-regime OOD (JHTDB AUROC $0.583$), we refer to it throughout as a \textbf{geometry-driven discrepancy indicator}, not an uncertainty estimator. We are equally explicit about its practical level: AUROC $0.786$ is moderate, not decision-grade, and we do not claim it can steer corrections; its present value is triage (flagging where and when a rollout should not be trusted) at literally zero marginal cost. That the signal transfers to a frozen backbone \emph{better} than native ($0.805$ vs $0.786$) indicates that it tracks generic physical features of error production (stretching, shear) rather than backbone-specific pathologies---useful for a transferable indicator, but it also means the signal is not a calibrated per-model uncertainty, consistent with the naming rule. All negative results and protocol artefacts are reported as they are.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/fig6_upi_signal.pdf}
+\caption{\textbf{Geometry-driven discrepancy indicator}. (a) Mid-plane $\omega_z$ fields at rollout depths $k{=}50$ and $k{=}100$ ($k{=}200$ omitted: the under-resolved reference field there is dominated by grid-scale content). Columns: network prediction, DNS truth (shared symmetric colour scale), true pointwise error, and gate score. The error concentrates along stretched vortex filaments, and the gate score lights up in the same regions---the signal the network uses to bound its own correction coincides spatially with where it is actually wrong. (b) Correlation and AUROC versus horizon. (c) AUROC across distributions. (d) Calibration curve.}
+\label{fig:fig6}
+\end{figure}
+
+\section{Discussion}
+
+\subsection{Limitations and boundary conditions}
+
+We state the boundaries before any strength: the theorems certify \emph{stability}, never accuracy; the envelope is a safety net whose calibrated coverage must contain the target attractor; and the anchor must match the governing equations of the data. Where any of these conditions fails, we report the failure rather than route around it---three of our own OOD scenarios are designed to probe exactly these edges.
+
+\textbf{(i) Calibration coverage}: the envelope constants must be calibrated on the target system family; when the target attractor exceeds the calibrated coverage (KS $L{=}44$), the envelope degenerates into permanent intervention (hit rate $100\%$)---it still prevents crashes but is no longer a silent safety net, and the accuracy crown of that scenario belongs to the loss-level arm. \textbf{(ii) Cross-regime transfer}: on the TGV$\to$HIT 3D regime-OOD the backbone's energy collapses ($E/E_0=0.11$ at step 1), an unsolved problem; moreover, the production term of forced turbulence is not analytically available from real-world data, which limits direct application of the envelope there. \textbf{(iii) Resolution}: the 3D main system is an under-resolved $64^3$ simulation; this does not affect the methodological conclusion on the position of physics (which holds independently on three resolution families) but limits the extrapolation of absolute accuracy claims. \textbf{(iv) Statistical robustness}: the main conclusions rest on 10 ICs with a single seed; per-IC curves are fully released, 95\% intervals accompany the main table, and the one pairwise gap whose intervals overlap (rL2@200 vs the approximate PhysicsCorrect reproduction) is explicitly not claimed as significant (Section~\ref{sec:setup}); multi-seed replication is on the supplementary agenda. \textbf{(v) Approximate reproduction}: PhysicsCorrect's official release contains no 3D implementation (2D Navier--Stokes, wave and KS only, with quadratically scaling correction cost); our 3D arm is an approximate reproduction following the published method, and the corresponding numbers carry that caveat. \textbf{(vi) Known artefact}: the envelope's delayed-release $\varepsilon(t)$ profile.
+
+\subsection{Anatomy of the principle}
+
+The cross-system evidence splits architecture-level physical anchoring into two independently transferable components. \emph{Hard carriage of exactly known dynamics}: accuracy gains are regime-dependent (crushing on KS in-domain, rL2 $0.015$ vs $1.18$; mainly variance contraction and short-range accuracy on 2D in-domain). \emph{Inference-path envelope}: the most robustly transferable component---silent in-domain, crash-proof at boundaries, zero-recalibration across systems and resolutions. For the general claim the latter is stronger: it relies on no fitting at all, only on the energy identity.
+
+\subsection{Relation to structure-preserving numerical analysis}
+
+Theorems~\ref{thm:div}--\ref{thm:gate} inherit the spirit of structure-preserving numerics: projection methods $\to$ divergence-free (Theorem~\ref{thm:div}), energy limiters $\to$ dissipation compatibility (Theorem~\ref{thm:energy}), CFL-type boundedness conditions $\to$ bounded correction (Theorem~\ref{thm:gate}). The key difference is the object being constrained: classical schemes constrain \emph{known discrete operators}, whereas we constrain \emph{a neural network with unanalysable degrees of freedom}---the guarantees must therefore be constructive and independent of network properties (projection idempotency, the scalar scaling identity). We do not claim to replace classical CFD: a well-resolved spectral solver is unconditionally stable at these step sizes and more accurate per simulated unit of time. The case for learned surrogates is the standard one---once trained, inference is milliseconds per step and amortises across many initial conditions, and learned components can stand in for physics that is only partially known; our point is narrower and methodological: \emph{if} one deploys a learned simulator autoregressively, the position of its physical constraints decides whether it survives the rollout. The target setting is rollout tasks where the true solution is unavailable and data-driven extrapolation is unavoidable; the architectural prior carries the stability ideas of classical numerical analysis into a space where no scheme exists. A point-by-point comparison table is given in SI-B.
+
+\subsection{Methodological implications for evaluation standards}
+
+The rL2--energy decoupling (Fig.~\ref{fig:fig3}b) shows that ranking long-horizon PDE rollouts by rL2 alone is systematically misleading---it rewards over-smoothing and regression to the mean. We propose three actionable reporting standards to the community: (i) comparisons at $K\ge50$ must report the energy (or corresponding invariant) trajectory and the crash rate alongside rL2; (ii) any ``zero-crash'' claim must state its crash criterion (loosen the criterion by one order of magnitude and the conclusion can flip---the data archaeology in Methods is a case in point); (iii) physics-regularised control arms should be trained with the same parameter count and curriculum as the architectural arm, otherwise the ``loss-level vs architecture-level'' conclusion is contaminated by capacity differences.
+
+\subsection{Outlook}
+
+(i) \textbf{Boundary mapping}: push the principle to the most complex settings (3D realistic turbulence, larger attractor dimensions) and chart the coverage and failure modes of anchor calibration---this consolidates the methodological claim more than adding yet another success case. (ii) \textbf{A PhysicsSpec catalogue}: our three systems demonstrate construction paradigms for the three families of hard-codable physics---conservation laws, linear operators, dissipation inequalities; formalising the selection criterion of \emph{which physics deserves a place on the inference path} would upgrade a point method into a design manual. (iii) \textbf{Closing the indicator loop}: feeding the discrepancy signal into adaptive time-stepping or active-learning data acquisition is a natural extension, but cross-regime calibration must be solved first. (iv) \textbf{Shaping the cognitive boundary}: hard-carrying known physics deliberately restricts what the learned residual may express---the gated trust region defines a \emph{cognitive boundary} of the surrogate. Our experiments answer the first design question: the boundary's \emph{shape}, not its size, is the binding constraint---uniformly enlarging an isotropic trust ball changes nothing ($<0.5\%$), while an anisotropic per-band trust profile, calibrated self-supervised from the anchor's own error, cuts long-horizon error by $18$--$35\%$ at zero training cost (Section~\ref{sec:shape}). State-dependent, direction-dependent boundaries---the deformation field of Fig.~\ref{fig:gate3d} made trainable---are the next step. (v) \textbf{The law as the anchor}: our counterfactual (Section~\ref{sec:explicit}) shows the explicit operator is the best anchor wherever its preconditions hold, and a learned anchor is a drift-prone approximation of it. The endgame architecture is therefore a hybrid: the law written exactly where it is known, a learned closure where it is not (missing forcing, under-resolution, non-periodic real data), and a shaped, instrumented boundary between them. How large the closure's share can grow before the stability guarantees erode is, in our view, the central open problem for anchored surrogates.
+
+\subsection{Answers to the editor's three questions}
+
+(i) \emph{What general principle did we discover?} The position at which physical constraints are embedded determines the stability properties of autoregressive rollout. Physics as a loss is a suggestion; as post-processing, a patch; on the inference path, a law. (ii) \emph{Which independent evidence shows it is not a single-system trick?} Three mechanistically distinct systems (3D decaying turbulence, 2D forced turbulence, 1D chaos) and six independent scenarios reproduce ``architectural anchoring beats loss-level physics'' under an isomorphic controlled protocol; a zero-parameter envelope prevents crashes across systems and resolutions with zero recalibration; three theorems provide deterministic, network-independent guarantees. (iii) \emph{When the model ``does not crash'' for a long time, is the true statistical physics also right?} Yes---energy ($0.6\%$ bias against truth at $K{=}200$), dissipation rate, energy spectra, enstrophy and the vorticity PDF pass simultaneously; and we exhibit counter-examples (U-Net, gate90) proving that ``not crashing'' is not itself evidence of physical correctness.
+
+\section{Conclusions}
+
+We asked a positional question: in long-horizon neural PDE prediction, where should physical constraints live? Controlled experiments answer: on the inference path---not in the loss, not after the prediction. This positional choice changes the stability properties of rollout: zero-parameter architectural priors keep long-horizon trajectories physically feasible on three mechanistically distinct systems, while loss-level physics arms with identical parameter counts and training curricula consistently fail. Divergence-free output, dissipation compatibility and bounded correction provide deterministic guarantees independent of network internals, and the geometric discrepancy between anchor and residual emerges as a zero-cost error-diagnosis signal. The boundaries are equally clear: envelope calibration must cover the target attractor, and cross-regime transfer remains open. The next step for physical AI is not only to ``know more physics'', but to put physics where the machine cannot bypass it.
+
+\section{Methods}
+
+\textbf{Systems and data}. \emph{3D Taylor--Green vortex\cite{taylor1937}} at Re$=6400$: $64^3$ pseudo-spectral solver (fluidsim\cite{mohanan2019fluidsim}), 2/3 de-aliasing, $T{=}20$ long trajectories, held-out split (SPLIT\_SEED$=42$); following the grid and convergence evidence we describe this as an under-resolved pseudo-spectral simulation. \emph{2D Kolmogorov flow}: in-house vorticity--stream-function spectral solver (contour-integral ETDRK4\cite{cox2002etdrk4,kassam2005}, 2/3 de-aliasing, $\nu{=}2{\times}10^{-3}$, $A{=}0.15$, $k_f{=}4$, $\alpha{=}0.1$, $\mathrm{Re}_{\mathrm{box}}{\approx}1760$), burn-in to statistical stationarity, 14 independent initial conditions (10 train / 2 validation / 2 test); OOD sets: Re$\times2.2$, decaying turbulence and $128^2$ resolution, 3 trajectories each. \emph{1D KS}\cite{kuramoto1976,sivashinsky1977}: contour-integral ETDRK4, $L\in\{22,32,44\}$. All generators pass a one-step integration-consistency check (relative error $<10^{-6}$). JHTDB isotropic1024coarse\cite{li2008jhtdb} ($\mathrm{Re}_\lambda{=}433$) is used for OOD evaluation only, never for training.
+
+\textbf{Data archaeology}. In the course of this study we identified and discarded two batches of legacy data: an old KS dataset that satisfies a damped variant of the equation (monotonically decaying energy, no chaos), and an old System-B dataset in which slices of a 3D field were passed off as 2D (divergence ratio $\approx1.0$, vorticity-equation residual $2$--$24$). ``Zero-crash'' conclusions once drawn on these datasets do not hold under strict criteria. Verification scripts and the deprecation record are released with the code (SI-C).
+
+\textbf{Models and training}. \emph{3D backbone}: spectral-split hard side (Leray projection~\eqref{eq:leray} $+$ gate truncation~\eqref{eq:fusion}, both active in the training forward pass and gradient-permeable) $+$ soft branch (3-expert spectral-convolution MoE, trained jointly with the hard side) $+$ zero-parameter calibration gate (Eqs.~\eqref{eq:gate}--\eqref{eq:fusion}) $+$ memory-bank FiLM (Supplementary Information); the dissipation envelope~\eqref{eq:env-decay} is an inference-path safety net applied identically at evaluation, deliberately never seen during training (Section~\ref{sec:arch}); $5.10$M parameters; 100 epochs, AdamW $10^{-4}$ with cosine annealing, rollout$=3$ curriculum (Eq.~\eqref{eq:loss}) with scheduled sampling, one RTX 5070 Laptop GPU (8 GB), about 700 s/epoch. The hard-side bottleneck autoencoder uses spectral normalisation as a standard Lipschitz stabiliser (not required by any theorem; Corollary~\ref{cor:bounded} rests only on the envelope and the boundedness of forcing/grid wavenumbers). \emph{2D/1D}: the anchor is the exact linear propagator (Eqs.~\eqref{eq:ks-symbol}--\eqref{eq:phi1}; the PhysicsSpec is read from the data attributes, never hard-coded), the soft branch is an FNO2d/FNO1d (modes 12/16, width 32/64), and the three arms are parameter-matched (2D $1.19$M, 1D $0.29$M); 50 epochs with the same rollout curriculum; the full single-system experiment (including data generation) takes $<1$ hour. \emph{Implementation}: all physical operators are spectral; wavenumber grids and normalisation statistics are registered as buffers and saved with the checkpoint; on the $64^2{\to}128^2$ transfer the grid is rebuilt ($\lambda(\bm{k})$ is grid-independent---the structural basis of lossless resolution transfer); the envelope's per-step $\Delta t$ is passed from data-timestamp differences; the per-step composition order (gate $\rightarrow$ FiLM $\rightarrow$ divergence projection $\rightarrow$ two-layer energy mechanism) is identical across the equations, the figures and the released code (pseudocode in SI-E); the gate trust radius is capped at the pre-deployment constant $R_{\max}=5.0$ (normalised units; Eq.~\eqref{eq:trunc})---% TODO(verify): after the multi-seed chain, measure max(1.54*ê_g) over all eval runs and confirm the cap is never activated; adjust value if needed.
+the cap is a safety bound, not an active mechanism. \emph{Statistics}: mean$\pm$std across ICs; per-IC raw data released with the code. \emph{Plotting}: all figures are reproduced from the result JSONs by \texttt{scripts/make\_figures\_nc.py} in one command.
+
+\begin{table}[htbp]
+\centering\small
+\caption{\textbf{Training and evaluation hyperparameters} (isomorphic protocol across the three systems; the only cross-arm variable is where the physics is placed).}
+\label{tab:hyper}
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{2.9cm}*{3}{>{\raggedright\arraybackslash}X}@{}}
+\toprule
+Item & 3D TGV (System A) & 2D Kolmogorov (B) & 1D KS (C) \\
+\midrule
+Grid / domain & $64^3$, $(2\pi)^3$ & $64^2$ (OOD: $128^2$), $(2\pi)^2$ & $64$, $[0,L)$, $L\in\{22,32,44\}$ \\
+Viscosity / control & $\nu=1/6400$ & $\nu=2{\times}10^{-3}$, $\alpha=0.1$, $k_f=4$ & standard KS (Eq.~\eqref{eq:ks-symbol}) \\
+Frame step $\Delta t$ & $0.049$ (mean, non-uniform) & $0.165$ & $0.01$ \\
+Epochs / batch & 100 / 1 (accum.\ 4) & 50 / 16 & 50 / 64 \\
+Optimiser / LR & AdamW $10^{-4}$ cosine & AdamW $10^{-3}$ cosine & AdamW $10^{-3}$ cosine \\
+Rollout curriculum & \multicolumn{3}{c}{$R{=}3$, $\gamma_r{=}0.9$ (Eq.~\eqref{eq:loss})} \\
+Envelope constants $c_d$/$c_p$ & $1.218$ / --- (decay) & $0.903$ / $0.527$ & $0.130$ / $0.130$ \\
+Evaluation ICs & 10 & 5 (OOD 3) & 5 (OOD 3) \\
+Crash criteria & \multicolumn{3}{c}{Table~\ref{tab:crash}, frozen filling} \\
+Hardware & \multicolumn{3}{c}{Single RTX 5070 Laptop GPU (8 GB)} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section*{Data availability}
+
+Core custom code (architecture, training, evaluation, data generators, plotting scripts), configurations, random seeds, per-IC result JSONs and the source data for Figs.~\ref{fig:fig1}--\ref{fig:fig6} are provided with this submission. JHTDB data were obtained from the public Johns Hopkins Turbulence Database interface\cite{li2008jhtdb}. The falsification scripts and deprecation records of the data archaeology are provided alongside (Supplementary Information).
+% TODO(user): upload per-IC JSONs to Zenodo and insert the DOI here before submission.
+
+\section*{Code availability}
+
+The full codebase is available at \url{https://github.com/chenyuze1234/rcln-pde} under the Apache 2.0 licence.
+
+\begin{thebibliography}{99}
+\footnotesize
+
+\bibitem{li2021fno} Li, Z., Kovachki, N., Azizzadenesheli, K., Liu, B., Bhattacharya, K., Stuart, A. \& Anandkumar, A. Fourier neural operator for parametric partial differential equations. In \emph{International Conference on Learning Representations} (2021).
+
+\bibitem{ronneberger2015} Ronneberger, O., Fischer, P. \& Brox, T. U-Net: convolutional networks for biomedical image segmentation. In \emph{Medical Image Computing and Computer-Assisted Intervention (MICCAI)}, LNCS 9351, 234--241 (2015).
+
+\bibitem{lu2021deeponet} Lu, L., Jin, P., Pang, G., Zhang, Z. \& Karniadakis, G. E. Learning nonlinear operators via DeepONet based on the universal approximation theorem of operators. \emph{Nat. Mach. Intell.} \textbf{3}, 218--229 (2021).
+
+\bibitem{hao2024dpot} Hao, Z., Su, C., Liu, S., Berner, J., Ying, C., Su, H., Anandkumar, A., Song, J. \& Zhu, J. DPOT: auto-regressive denoising operator transformer for large-scale PDE pre-training. In \emph{Proceedings of the 41st International Conference on Machine Learning (ICML)} (2024).
+
+\bibitem{wu2024transolver} Wu, H., Luo, H., Wang, H., Wang, J. \& Long, M. Transolver: a fast transformer solver for PDEs on general geometries. In \emph{Proceedings of the 41st International Conference on Machine Learning (ICML)}, PMLR 235, 53681--53705 (2024).
+
+\bibitem{kovachki2023} Kovachki, N., Li, Z., Liu, B., Azizzadenesheli, K., Bhattacharya, K., Stuart, A. \& Anandkumar, A. Neural operator: learning maps between function spaces with applications to PDEs. \emph{J. Mach. Learn. Res.} \textbf{24}(89), 1--97 (2023).
+
+\bibitem{azizzadenesheli2024} Azizzadenesheli, K., Kovachki, N., Li, Z., Liu-Schiaffini, M., Kossaifi, J. \& Anandkumar, A. Neural operators for accelerating scientific simulations and design. \emph{Nat. Rev. Phys.} \textbf{6}, 320--328 (2024).
+
+\bibitem{lam2023graphcast} Lam, R. et al. Learning skillful medium-range global weather forecasting. \emph{Science} \textbf{382}, 1416--1421 (2023).
+
+\bibitem{kochkov2024neuralgcm} Kochkov, D. et al. Neural general circulation models for weather and climate. \emph{Nature} \textbf{632}, 1060--1066 (2024).
+
+\bibitem{brandstetter2022mpnpde} Brandstetter, J., Worrall, D. E. \& Welling, M. Message passing neural PDE solvers. In \emph{International Conference on Learning Representations} (2022).
+
+\bibitem{mccabe2023stability} McCabe, M., Harrington, P., Subramanian, S. \& Brown, J. Towards stability of autoregressive neural operators. \emph{Trans. Mach. Learn. Res.} (2023).
+
+\bibitem{lippe2023pderefiner} Lippe, P., Veeling, B., Perdikaris, P., Turner, R. E. \& Brandstetter, J. PDE-Refiner: achieving accurate long rollouts with neural PDE solvers. In \emph{Advances in Neural Information Processing Systems 36} (2023).
+
+\bibitem{kochkov2021mlcfd} Kochkov, D., Smith, J. A., Alieva, A., Wang, Q., Brenner, M. P. \& Hoyer, S. Machine learning--accelerated computational fluid dynamics. \emph{Proc. Natl Acad. Sci. USA} \textbf{118}(21), e2101784118 (2021).
+
+\bibitem{raissi2019pinn} Raissi, M., Perdikaris, P. \& Karniadakis, G. E. Physics-informed neural networks: a deep learning framework for solving forward and inverse problems involving nonlinear partial differential equations. \emph{J. Comput. Phys.} \textbf{378}, 686--707 (2019).
+
+\bibitem{li2024pino} Li, Z., Zheng, H., Kovachki, N., Jin, D., Chen, H., Liu, B., Azizzadenesheli, K. \& Anandkumar, A. Physics-informed neural operator for learning partial differential equations. \emph{ACM/IMS J. Data Sci.} \textbf{1}(3), 1--27 (2024).
+
+\bibitem{karniadakis2021} Karniadakis, G. E., Kevrekidis, I. G., Lu, L., Perdikaris, P., Wang, S. \& Yang, L. Physics-informed machine learning. \emph{Nat. Rev. Phys.} \textbf{3}, 422--440 (2021).
+
+\bibitem{wang2021pideeponet} Wang, S., Wang, H. \& Perdikaris, P. Learning the solution operator of parametric partial differential equations with physics-informed DeepONets. \emph{Sci. Adv.} \textbf{7}(40), eabi8605 (2021).
+
+\bibitem{huang2025physicorrect} Huang, X. \& Perdikaris, P. PhysicsCorrect: a training-free approach for stable neural PDE simulations. \emph{Proc. AAAI Conf. Artif. Intell.} \textbf{40}(26), 22057--22065 (2026).
+
+\bibitem{lee2021deepconservation} Lee, K. \& Carlberg, K. T. Deep conservation: a latent-dynamics model for exact satisfaction of physical conservation laws. \emph{Proc. AAAI Conf. Artif. Intell.} \textbf{35}(1), 277--285 (2021).
+
+\bibitem{mohan2023hard} Mohan, A. T., Lubbers, N., Chertkov, M. \& Livescu, D. Embedding hard physical constraints in neural network coarse-graining of three-dimensional turbulence. \emph{Phys. Rev. Fluids} \textbf{8}, 014604 (2023).
+
+\bibitem{chalapathi2024moe} Chalapathi, N., Du, Y. \& Krishnapriyan, A. Scaling physics-informed hard constraints with mixture-of-experts. \emph{Preprint at arXiv:2402.13412} (2024).
+
+\bibitem{hairer2006gni} Hairer, E., Lubich, C. \& Wanner, G. \emph{Geometric Numerical Integration: Structure-Preserving Algorithms for Ordinary Differential Equations}, 2nd edn (Springer, 2006).
+
+\bibitem{chorin1968} Chorin, A. J. Numerical solution of the Navier--Stokes equations. \emph{Math. Comput.} \textbf{22}, 745--762 (1968).
+
+\bibitem{yin2021aphynity} Yin, Y. et al. Augmenting physical models with deep networks for complex dynamics forecasting. \emph{J. Stat. Mech.: Theory Exp.} \textbf{2021}, 124012 (2021).
+
+\bibitem{gal2016dropout} Gal, Y. \& Ghahramani, Z. Dropout as a Bayesian approximation: representing model uncertainty in deep learning. In \emph{Proceedings of the 33rd International Conference on Machine Learning (ICML)}, 1050--1059 (2016).
+
+\bibitem{lakshminarayanan2017} Lakshminarayanan, B., Pritzel, A. \& Blundell, C. Simple and scalable predictive uncertainty estimation using deep ensembles. In \emph{Advances in Neural Information Processing Systems 30} (2017).
+
+\bibitem{yuval2020stable} Yuval, J. \& O'Gorman, P. A. Stable machine-learning parameterization of subgrid processes for climate modeling at a range of resolutions. \emph{Nat. Commun.} \textbf{11}, 3295 (2020).
+
+\bibitem{kontolati2024latent} Kontolati, K., Goswami, S., Karniadakis, G. E. \& Shields, M. D. Learning nonlinear operators in latent spaces for real-time predictions of complex dynamics in physical systems. \emph{Nat. Commun.} \textbf{15}, 5101 (2024).
+
+\bibitem{kuramoto1976} Kuramoto, Y. \& Tsuzuki, T. Persistent propagation of concentration waves in dissipative media far from thermal equilibrium. \emph{Prog. Theor. Phys.} \textbf{55}, 356--369 (1976).
+
+\bibitem{sivashinsky1977} Sivashinsky, G. I. Nonlinear analysis of hydrodynamic instability in laminar flames---I. Derivation of basic equations. \emph{Acta Astronaut.} \textbf{4}, 1177--1206 (1977).
+
+\bibitem{cox2002etdrk4} Cox, S. M. \& Matthews, P. C. Exponential time differencing for stiff systems. \emph{J. Comput. Phys.} \textbf{176}, 430--455 (2002).
+
+\bibitem{kassam2005} Kassam, A.-K. \& Trefethen, L. N. Fourth-order time-stepping for stiff PDEs. \emph{SIAM Rev.} \textbf{47}, 631--644 (2005).
+
+\bibitem{taylor1937} Taylor, G. I. \& Green, A. E. Mechanism of the production of small eddies from large ones. \emph{Proc. R. Soc. Lond. A} \textbf{158}, 499--521 (1937).
+
+\bibitem{mohanan2019fluidsim} Mohanan, A. V., Bonamy, C., Linares, M. C. \& Augier, P. FluidSim: modular, object-oriented Python package for high-performance CFD simulations. \emph{J. Open Res. Softw.} \textbf{7} (2019).
+
+\bibitem{li2008jhtdb} Li, Y. et al. A public turbulence database cluster and applications to study Lagrangian evolution of velocity increments in turbulence. \emph{J. Turbul.} \textbf{9}, N31 (2008).
+
+\bibitem{kossaifi2024library} Kossaifi, J. et al. A library for learning neural operators. \emph{Preprint at arXiv:2412.10354} (2024).
+
+\bibitem{yin2024dimon} Yin, M., Charon, N., Brody, R. et al. A scalable framework for learning the geometry-dependent solution operators of partial differential equations. \emph{Nat. Comput. Sci.} \textbf{4}, 928--940 (2024).
+
+\bibitem{li2026sgno} Li, J., Jiang, P., Saleem, H., Wang, Z., Koniusz, P. \& Salim, F. D. SGNO: spectral generator neural operators for stable long horizon PDE rollouts. \emph{Preprint at arXiv:2602.18801} (2026).
+
+\bibitem{zhang2026geoincno} Zhang, J. et al. Geometry-aware incremental neural operator for long-horizon PDE prediction. \emph{Preprint at arXiv:2608.11237} (2026).
+
+\bibitem{valente2025projection} Valente, M., Dias, T. C., Guerra, V. \& Ventura, R. Physics-consistent machine learning with output projection onto physical manifolds. \emph{Commun. Phys.} \textbf{8}, 433 (2025).
+
+\bibitem{rao2023percnn} Rao, C., Ren, P., Wang, Q. et al. Encoding physics to learn reaction-diffusion processes. \emph{Nat. Mach. Intell.} \textbf{5}, 765--779 (2023).
+
+\bibitem{chen2024onsagernet} Chen, X., Soh, B. W., Ooi, Z.-E. et al. Constructing custom thermodynamics using deep learning. \emph{Nat. Comput. Sci.} \textbf{4}, 66--85 (2024).
+
+\bibitem{xiong2026pdco} Xiong, Z. \& Zhao, P. Attaining physics-driven convolutional operators by architecture design. \emph{Commun. Phys.} \textbf{9}, 207 (2026).
+
+\bibitem{wang2026ani} Wang, H., Wang, Q., Yuan, C. \& Wu, K. Learning missing physics from legacy simulators with alternating neural integrators. \emph{Nat. Commun.} \textbf{17}, 7877 (2026).
+
+\bibitem{kharazmi2021identifiability} Kharazmi, E., Cai, M., Zheng, X. et al. Identifiability and predictability of integer- and fractional-order epidemiological models using physics-informed neural networks. \emph{Nat. Comput. Sci.} \textbf{1}, 744--753 (2021).
+
+\bibitem{zanardi2023adaptive} Zanardi, I., Venturi, S. \& Panesi, M. Adaptive physics-informed neural operator for coarse-grained non-equilibrium flows. \emph{Sci. Rep.} \textbf{13}, 15497 (2023).
+
+\end{thebibliography}
+
+\section*{Acknowledgements}
+The author received no specific funding for this work.
+
+\section*{Author contributions}
+Y.C.: Conceptualization, Methodology, Software, Validation, Formal analysis, Investigation, Writing -- Original Draft, Writing -- Review \& Editing, Visualization.
+
+\section*{Competing interests}
+The author declares no competing interests.
+
+\section*{Ethics declarations}
+This work did not involve human participants, human data, or animal experiments.
+
+\end{document}
