@@ -291,7 +291,28 @@ FNO$+$post-hoc envelope & 6.70M & $0.293$ & $0.946$ & $1.385$ & $0.997$ & $0/20$
 
 The architecture of Section~\ref{sec:arch} embeds physics on the inference path, but one component still sits uneasily with the ``law'' rhetoric: the anchor itself is \emph{learned}. A learned anchor is trained with a prediction loss, and nothing pins it to physics---in an earlier checkpoint lineage we observed the anchor drift to anti-correlation with the truth (cosine $-0.914$), a pathology that only a later realignment protocol repaired. We therefore asked the radical question: if the governing equations are known, why should a network re-learn them? We replaced the learned anchor with a \textbf{zero-parameter explicit pseudo-spectral Navier--Stokes step} (RK4, $2/3$ dealiasing, Leray projection, one substep per frame, $\nu=1/6400$) and probed it against the learned anchor on identical inputs.
 
-The result is unambiguous. Single-step, on unseen test initial conditions: relative L2 error $0.016$ (explicit) versus $0.143$ (learned anchor); on training pairs the explicit step is machine-exact, because it shares its numerics with the data generator. Long horizon ($K{=}200$, three independent test trajectories): the explicit stepper alone reaches rL2 $0.057/0.143/0.773$ at $k{=}50/100/200$ with $E/E_0{=}0.947$ (truth $0.9518$) and zero crashes---\emph{dominating every learned model in Table~\ref{tab:main} on every metric simultaneously}. We report this counterfactual deliberately, although it is uncomfortable: at matched resolution with fully known physics, the explicit step \emph{is} the cheap solver, and no learned component can beat it pointwise. The learned surrogate must therefore earn its place exactly where the explicit step degrades or is unavailable: under-resolved grids, larger time steps, partially known physics, or real-world data violating the solver's preconditions. The last case is measurable in our own testbed: on JHTDB isotropic-turbulence cutouts (Re$_\lambda{=}433$) the spectral preconditions fail outright---the subvolume is non-periodic (boundary jumps $2.5$--$4\times$ the local increment scale) and the explicit step diverges within two steps---while the forcing term of stationary HIT is not analytically available at all. These observations delineate the applicability boundary of an explicit-law anchor and complete the architecture: \emph{the law, written exactly, supplies the ideal point and the ideal range; the learnable components exist to close the gap between ideal and reality}---the learned closure (formerly the soft branch) corrects under-resolution and missing terms, and the geometry gate bounds how far that correction may be trusted.
+The result is unambiguous. Single-step, on unseen test initial conditions: relative L2 error $0.016$ (explicit) versus $0.143$ (learned anchor); on training pairs the explicit step is machine-exact, because it shares its numerics with the data generator. Long horizon ($K{=}200$, three independent test trajectories): the explicit stepper alone reaches rL2 $0.057/0.143/0.773$ at $k{=}50/100/200$ with $E/E_0{=}0.947$ (truth $0.9518$) and zero crashes---\emph{dominating every learned model in Table~\ref{tab:main} on every metric simultaneously}. We report this counterfactual deliberately, although it is uncomfortable: at matched resolution with fully known physics, the explicit step \emph{is} the cheap solver, and no learned component can beat it pointwise. The learned surrogate must therefore earn its place exactly where the explicit step degrades or is unavailable. We mapped this degradation boundary systematically (Table~\ref{tab:degrade}): the explicit step is exact only while four preconditions hold simultaneously---\emph{periodicity} (on JHTDB isotropic-turbulence cutouts, Re$_\lambda{=}433$, the non-periodic subvolume with boundary jumps $2.5$--$4\times$ the local increment scale makes the same stepper diverge within two steps; the forcing of stationary HIT is not analytically available at all), \emph{known parameters} (a factor-2 error in $\nu$---the mildest possible misspecification of a real experiment---biases end-point energy by $+2.2\%$/$-4.3\%$; the over-estimated-$\nu$ variant even \emph{improves} rL2, because over-damping suppresses chaotic divergence while corrupting the physics---the rL2--energy decoupling of Fig.~\ref{fig:fig3}b in reverse), \emph{adequate resolution} (spectral truncation to $32^3$ degrades rL2@200 by $19\%$ and over-energises the flow), and \emph{a stable time step} (one RK4 step per $4$ frames---a $4\times$ cheaper solver---crosses the explicit stability limit and crashes on all three trajectories; per $8$ frames it crashes within $16$ steps). These failures are precisely the regimes in which neural surrogates are deployed. They delineate the applicability boundary of an explicit-law anchor and complete the architecture: \emph{the law, written exactly, supplies the ideal point and the ideal range; the learnable components exist to close the gap between ideal and reality}---the learned closure (formerly the soft branch) corrects under-resolution and misspecified terms, and the geometry gate bounds how far that correction may be trusted.
+
+\begin{table}[htbp]
+\centering\small
+\caption{\textbf{Precondition boundary of the explicit spectral step} (three test trajectories, $K{=}200$, $\nu{=}1/6400$; the reference row reproduces the counterfactual of Table~\ref{tab:main}). The explicit step dominates only while all four preconditions hold; each violated precondition converts its strength into a distinct failure mode. rL2 of crashed arms is not defined (NaN).}
+\label{tab:degrade}
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{3.2cm}*{4}{>{\raggedright\arraybackslash}X}>{\raggedright\arraybackslash}p{1.1cm}@{}}
+\toprule
+Precondition violated & rL2@50 & rL2@100 & rL2@200 & $E/E_0$@200 & crash \\
+\midrule
+\emph{none (reference)} & 0.057 & 0.143 & 0.773 & 0.947 & 0/3 \\
+time step ($\Delta t{\times}4$) & --- & --- & --- & --- & 3/3 ($k{\approx}40$) \\
+time step ($\Delta t{\times}8$) & --- & --- & --- & --- & 3/3 ($k{=}16$) \\
+resolution ($32^3$ trunc.) & 0.072 & 0.194 & 0.918 & 0.968 & 0/3 \\
+parameter ($\nu{\times}2$) & 0.049 & 0.118 & 0.683 & 0.911 & 0/3 \\
+parameter ($\nu{\times}0.5$) & 0.062 & 0.159 & 0.828 & 0.973 & 0/3 \\
+periodicity (JHTDB cutout) & \multicolumn{4}{l}{NaN within 2 steps (Gibbs ringing)} & 3/3 \\
+\bottomrule
+\end{tabularx}
+\\[2pt]
+{\footnotesize Truth $E/E_0$@200 $=0.9518$. $\Delta t{\times}4$/$\times8$: one RK4 step per 4/8 frames ($4\times$/$8\times$ cheaper than reference). $32^3$: spectral truncation, rollout at $32^3$, zero-padded back to $64^3$ for scoring. The $\nu{\times}2$ row's lower rL2 is an over-damping artefact, not better physics (energy biased $-4.3\%$).}
+\end{table}
 % [V8-EVAL-PENDING] v8 (explicit anchor + learned closure + shaped gate) 训练完成后在此补主表行与评测段
 
 \subsection{The shape of the boundary, not its size}\label{sec:shape}
@@ -457,8 +478,8 @@ Frame step $\Delta t$ & $0.049$ (mean, non-uniform) & $0.165$ & $0.01$ \\
 Epochs / batch & 100 / 1 (accum.\ 4) & 50 / 16 & 50 / 64 \\
 Optimiser / LR & AdamW $10^{-4}$ cosine & AdamW $10^{-3}$ cosine & AdamW $10^{-3}$ cosine \\
 Rollout curriculum & \multicolumn{3}{c}{$R{=}3$, $\gamma_r{=}0.9$ (Eq.~\eqref{eq:loss})} \\
-Envelope constants $c_d$/$c_p$ & $1.218$ / --- (decay) & $0.903$ / $0.527$ & $0.130$ / $0.130$ \\
-Evaluation ICs & 10 & 5 (OOD 3) & 5 (OOD 3) \\
+Envelope constants $c_d$/$c_p$ & $0.100$ / --- (decay) & $0.903$ / $0.527$ & $0.130$ / $0.130$ \\
+Evaluation ICs & 20 (100 rollouts for the deployed model) & 5 (OOD 3) & 5 (OOD 3) \\
 Crash criteria & \multicolumn{3}{c}{Table~\ref{tab:crash}, frozen filling} \\
 Hardware & \multicolumn{3}{c}{Single RTX 5070 Laptop GPU (8 GB)} \\
 \bottomrule
