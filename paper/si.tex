@@ -113,11 +113,11 @@ Structure functions $S_2(r)$ and scale-resolved skewness/kurtosis of velocity an
 
 \section*{SI-E \quad Per-step update: pseudocode in implementation order}
 
-The per-step update is listed below in exactly the order of the released implementation (\texttt{models/rcln\_upi\_v5.py}, \texttt{RCLN\_UPI\_v5.forward}; evaluation wrapper \texttt{models/dissipation\_envelope.py}). Equation and theorem numbers refer to the main text. Steps~1--9 constitute the training forward pass; step~10 is diagnostic-only during training and active at inference; step~11 is the external evaluation wrapper, never seen during training.
+The per-step update is listed below in exactly the order of the released implementation (\texttt{models/rcln\_upi\_v5.py}, \texttt{RCLN\_UPI\_v5.forward} with \texttt{anchor\_mode='explicit'}; evaluation wrappers \texttt{evaluation/v8\_ebc\_probe.py}, \texttt{EnergyBudgetClosureWrapper}, and \texttt{models/dissipation\_envelope.py}, \texttt{DissipationEnvelopeWrapper}). Equation and theorem numbers refer to the main text. Steps~1--9 constitute the training forward pass; step~10 is diagnostic-only during training and active at inference; steps~11--12 are external evaluation wrappers, never seen during training.
 
 \begin{enumerate}
-\item \textbf{Anchor:} $(\bu_{\mathrm{anchor}},\bm{z})\leftarrow$ parameter-free physical propagator (spectral-split hard side; the anchor is never trained).
-\item \textbf{Residual:} $\bu_{\mathrm{soft}}\leftarrow\bu_t+\mathcal{S}_\phi(\bu_t,\bm{z})$ (3-expert spectral-convolution MoE conditioned on the anchor latent $\bm{z}$).
+\item \textbf{Anchor:} $\bu_{\mathrm{anchor}}\leftarrow$ zero-parameter physical propagator, never trained. \emph{Deployed (explicit mode):} explicit pseudo-spectral Navier--Stokes step (RK4, 2/3 de-aliasing, one substep per frame, computed in physical units in fp32 under \texttt{no\_grad}; \texttt{models/spectral\_ns\_step.py}). \emph{Learned lineage (ablation only):} the spectral-split hard side; the downstream pipeline is interface-identical in both modes.
+\item \textbf{Closure:} $\bu_{\mathrm{soft}}\leftarrow\bu_t+\mathcal{S}_\phi(\bu_t,\bm{z})$ (3-expert spectral-convolution MoE conditioned on the anchor latent $\bm{z}$).
 \item \textbf{Calibration:} $(\hat e_g,\hat e_l)\leftarrow$ supervised error-calibration head on \emph{detached} encoder features and detached branch fields.
 \item \textbf{Gate weight:} $w\leftarrow\hat e_g^{\beta}/(\hat e_g^{\beta}+\hat e_l^{\beta})$ per voxel (Eq.~10).
 \item \textbf{Blend:} $\bu_{\mathrm{blend}}\leftarrow(1-w)\,\bu_{\mathrm{anchor}}+w\,\bu_{\mathrm{soft}}$ (Eq.~11).
@@ -126,6 +126,7 @@ The per-step update is listed below in exactly the order of the released impleme
 \item \textbf{Memory FiLM:} per-channel scale and shift from the memory-bank readout, applied to $\bu_{\mathrm{fused}}$.
 \item \textbf{Divergence projection:} spectral Leray projection (Eq.~3), active in training and inference (Theorem~1).
 \item \textbf{Internal one-sided net} (inference only): if $\Ex>\!1.05\,\Ex(\bu_t)$, rescale to $1.05\,\Ex(\bu_t)$; dissipation is never blocked; diagnostic-only during training.
+\item \textbf{Energy-budget closure (EBC)} (evaluation wrapper): remove any energy-creating radial component of the closure correction, $\Delta\bu\leftarrow\Delta\bu-\max(0,\langle\Delta\bu,\bu_{\mathrm{anchor}}\rangle/\|\bu_{\mathrm{anchor}}\|^2)\,\bu_{\mathrm{anchor}}$, then renormalise the fused state to the anchor's own energy, $\Ex(\bu_{\mathrm{EBC}})=\Ex(\bu_{\mathrm{anchor}})$ (main text, Section on the explicit anchor; norm-tightening, so Theorems~2--3 are unaffected).
 \item \textbf{External strict envelope} (evaluation wrapper): if $\Ex\notin\big[\Ex(\bu_t)-c_d\,\varepsilon(\bu_t)\,\Delta t,\ \Ex(\bu_t)\big]$ (decaying) or the two-sided driven interval, rescale to the nearest bound (Eqs.~7--9; Theorem~2); hit rate and $|\alpha-1|$ logged.
 \end{enumerate}
 
