@@ -2,7 +2,7 @@
 
 Dear Editors,
 
-We submit our manuscript entitled **"Architecture-embedded physical constraints enable stable long-horizon neural PDE prediction"** for consideration at *Nature Communications*.
+We submit our manuscript entitled **"Inference-path physics stabilizes long-horizon neural PDE prediction"** for consideration at *Nature Communications*.
 
 **The problem.** Long-horizon autoregressive rollout is the recognised weak point of neural PDE surrogates: errors compound over hundreds of steps and end in energy blow-up or unphysical over-dissipation. We argue that this fragility is not a matter of model capacity or training data, but of *where* physical knowledge is placed. As a soft penalty in the training loss, physics is a suggestion; as post-processing after the network, it is a patch; neither can stop a network from leaving the physically feasible set at inference time.
 
@@ -15,7 +15,7 @@ We submit our manuscript entitled **"Architecture-embedded physical constraints 
 We confirm that this manuscript is original, is not under consideration elsewhere, and that all authors have approved the submission.
 
 Sincerely,
-[The authors]
+Yuze Chen
 
 ---
 

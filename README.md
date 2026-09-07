@@ -2,7 +2,7 @@
 
 Companion code and results for the manuscript:
 
-> **"Architecture-embedded physical constraints enable stable long-horizon neural PDE prediction"**
+> **"Inference-path physics stabilizes long-horizon neural PDE prediction"**
 > (submitted to *Nature Communications*)
 
 This repository contains the core custom code, configurations, per-initial-condition result JSONs,
@@ -138,7 +138,7 @@ If you use this code, please cite:
 
 ```bibtex
 @article{rcln_pde_nc,
-  title   = {Architecture-embedded physical constraints enable stable long-horizon neural PDE prediction},
+  title   = {Inference-path physics stabilizes long-horizon neural PDE prediction},
   author  = {Chen, Yuze and collaborators},
   journal = {Nature Communications (under review)},
   year    = {2026},

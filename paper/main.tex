@@ -28,11 +28,14 @@
 \newcommand{\cT}{\mathcal{T}}
 \newcommand{\inner}[2]{\langle #1, #2 \rangle}
 
-\title{\bfseries Architecture-embedded physical constraints enable stable\\ long-horizon neural PDE prediction}
-% TODO(user): fill in affiliation and the corresponding email before submission.
-\author{Yuze Chen$^{1,*}$\\[4pt]
+\title{\bfseries Inference-path physics stabilizes long-horizon neural PDE prediction}
+% TODO(user): fill in affiliations and the corresponding email before submission.
+\author{Yuze Chen$^{1}$, Yunfeng Ma$^{2,*}$, Chao Zhang$^{3,*}$\\[4pt]
 \normalsize $^{1}$[Department, University, City, Country]\\
-\normalsize $^{*}$Corresponding author: [email]}
+\normalsize $^{2}$[Department, University, City, Country]\\
+\normalsize $^{3}$[Department, University, City, Country]\\
+\normalsize $^{*}$Corresponding authors: [email], [email]\\[2pt]
+\normalsize These authors jointly supervised this work: Yunfeng Ma, Chao Zhang}
 \date{}
 
 \begin{document}
@@ -41,8 +44,6 @@
 \begin{abstract}
 \noindent Neural operators predict short-term PDE evolution with high fidelity, yet long-horizon autoregressive rollout remains unreliable: errors compound and end in energy blow-up or over-dissipated collapse. We show that one structural variable decides this fate: where physical knowledge sits relative to the recurrent update. As a training loss, physics governs only the training distribution; as post-processing, it leaves the recurrent dynamics unregulated; embedded in the forward pass, it acts at every deployed step. We instantiate this as architecture-level anchoring: the governing equations, zero-parameter, sit on the inference path as law, while a gated learner closes the gap between ideal and reality under the law's energy budget. We report the omitted counterfactual: the explicit step alone outperforms every learned model at matched resolution, so learning must earn its place where the law is degraded---and it does, rescuing a misspecified viscosity's energy bias without retraining. Across 3D decaying turbulence, 2D forced turbulence and 1D chaos, the anchored model completes $100$ rollouts of $200$ steps with zero crashes and $0.6\%$ energy bias, while loss-only and post-hoc placements fail or distort the physics. Physics as a loss is a suggestion; as post-processing, a patch; on the inference path, a law.
 \end{abstract}
-
-\noindent\textbf{Keywords}: physics-informed machine learning; neural operators; long-horizon stability; constraint-preserving architectures; error diagnosis
 
 \section*{Introduction}
 
@@ -206,6 +207,10 @@ Theorem~\ref{thm:energy} guarantees \emph{feasibility}, not \emph{accuracy}: the
 None of Theorems~\ref{thm:div}--\ref{thm:gate} says anything about accuracy, and we do not pretend otherwise: like CFL conditions or energy-stable time integrators in classical numerics, they are \emph{stability certificates} whose role is to exclude one failure class (blow-up divergence) by construction. Nor is the content circular: the non-trivial statement is not ``a truncated correction is bounded'' but that the \emph{composition} of an arbitrary neural network with these operators inherits the bounds constructively, with hypotheses (projection idempotency, scalar scaling, bounded forcing amplitude, a resolved wavenumber ceiling) that are checkable without analysing the network. The accuracy question is empirical and is answered in Results; the stability question is settled structurally here. Separating the two is the point of the section.
 \end{remark}
 
+\begin{remark}[Compatibility of the energy-budget closure with the certificates]
+The deployed model inserts one further inference-path operator, the energy-budget closure (EBC; Section~\ref{sec:explicit}), \emph{upstream} of the envelope: EBC removes any energy-creating radial component of the closure correction and renormalises the fused state to the anchor's own energy, $\Ex(\bu_{\mathrm{EBC}})=\Ex(\bu_{\mathrm{anchor}})$. Because the explicit anchor is itself dissipative on decaying systems ($\Ex(\bu_{\mathrm{anchor}})\le\Ex(\bu_t)$), EBC is a norm-tightening rescaling onto the anchor's energy sphere: it acts after the gate (so the bound~\eqref{eq:thm3bound} is unaffected), and its output satisfies the envelope interval~\eqref{eq:env-decay} whenever the anchor does, so the certificate of Theorem~\ref{thm:energy} applies to the EBC-corrected state unchanged. The full per-step composition order---anchor $\to$ closure $\to$ gate truncation $\to$ FiLM $\to$ divergence projection $\to$ EBC $\to$ dissipation envelope---is identical in the equations, Fig.~\ref{fig:fig3}a, the pseudocode (SI-E) and the released code.
+\end{remark}
+
 \textbf{Energy budget identities (the physical basis of the envelopes)}. The envelope boundaries are fixed by the exact energy identity of each equation. For \textbf{KS}, multiplying $u_t=-uu_x-u_{xx}-u_{xxxx}$ by $u$ and averaging over the periodic domain kills the nonlinear term by parts, giving
 \begin{equation}
 \frac{\mathrm{d}\Ex}{\mathrm{d}t}=\underbrace{\langle u_x^2\rangle}_{P\ (\text{production})}-\underbrace{\langle u_{xx}^2\rangle}_{D\ (\text{dissipation})},\qquad \Ex=\tfrac12\langle u^2\rangle .
@@ -284,7 +289,7 @@ RCLN w/ learned anchor (ablation) & 5.10M & $0.982$ & $1.064$ & $1.135\pm0.037$ 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\textwidth]{figures/fig2_tgv_main.pdf}
-\caption{\textbf{Main 3D TGV results} (Re$=6400$, $20$ independent test trajectories; ours and FNO under $5$ seeds). (a) Survival curves (annotations mark first-crash steps: FNO median $k{=}65$, range $47$--$79$; FNO$+$PhysReg $k{=}96$ in all rollouts). (b) Energy trajectory $E(t)/E_0$ against truth; the grey band is the stepwise physically feasible interval of Theorem~\ref{thm:energy} with the recalibrated constant $c_d{=}0.1$ (inset: zoom of $k{=}150$--$200$); the FNO-family trajectories leave the band at their annotated first crashes. (c) rL2$(k)$ with standard-deviation band (logarithmic axis). (d) Dissipation rate $\varepsilon(t)$ (truth computed from $-\mathrm{d}E/\mathrm{d}t$). Post-crash states are non-finite; curves are held at their last finite value for display.}
+\caption{\textbf{Main 3D TGV results} (Re$=6400$, $20$ independent test trajectories; ours and FNO under $5$ seeds). (a) Survival curves (annotations mark first-crash steps: FNO median $k{=}65$, range $47$--$79$; FNO$+$PhysReg $k{=}96$ in all rollouts). (b) Energy trajectory $E(t)/E_0$ against truth; the grey band is the stepwise physically feasible interval of Theorem~\ref{thm:energy} with the calibrated constant $c_d{=}1.218$ (inset: zoom of $k{=}150$--$200$); the FNO-family trajectories leave the band at their annotated first crashes. (c) rL2$(k)$ with standard-deviation band (logarithmic axis). (d) Dissipation rate $\varepsilon(t)$, computed as $-\mathrm{d}E/\mathrm{d}t$ for all curves; FNO is absent from this panel because its energy grows monotonically from step one ($\varepsilon\le0$ throughout), which a logarithmic axis cannot show. Post-crash states are non-finite; curves are held at their last finite value for display.}
 \label{fig:fig2}
 \end{figure}
 
@@ -354,7 +359,7 @@ The ablation profile confirms the role division of Section~\ref{sec:arch} for th
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\textwidth]{figures/fig3_ablation_mechanism.pdf}
-\caption{\textbf{Mechanism dissection and cost}. (a) One fused inference step: anchor $\to$ residual $\to$ geometry gate $\to$ trust-radius clipping, with the per-step guarantees of Theorems~\ref{thm:div}--\ref{thm:gate}. (b) Hard-vs-soft ablation: rL2@100 versus $E/E_0$ at $K{=}200$ for the ablation arms (our model is the star; the dashed line marks the truth $E_{200}{=}0.9416$ of the previous 10-IC protocol under which the ablation arms were evaluated)---the rL2--energy decoupling is visible directly: arms with similar rL2 span opposite energy fates. (c) Cost--accuracy Pareto (marker size $\propto$ parameter count). (d) False versus true stability: the gate90 arm's vorticity PDF at $k{=}200$ is over-dissipative with damped tails ($E/E_0{=}0.56$), while ours matches the truth ($0.93$ vs $0.94$).}
+\caption{\textbf{Mechanism dissection and cost}. (a) One fused inference step: anchor $\to$ closure $\to$ geometry gate $\to$ energy-budget projection $\to$ envelope, with the per-step guarantees of Theorems~\ref{thm:div}--\ref{thm:gate}. (b) Component ablation of the deployed explicit-anchor model (Table~\ref{tab:ablation}): rL2@100 versus $E/E_0$ at $K{=}200$ (ours is the star; the dashed line marks the truth $E_{200}{=}0.9518$)---the rL2--energy decoupling is visible directly: removing the envelope improves rL2 while destroying energy fidelity, and removing EBC does the reverse. (c) Cost--accuracy Pareto (marker size $\propto$ parameter count). (d) False versus true stability, from the earlier learned-anchor lineage: the gate90 arm's vorticity PDF at $k{=}200$ is over-dissipative with damped tails ($E/E_0{=}0.56$), while the constrained model matches the truth.}
 \label{fig:fig3}
 \end{figure}
 
@@ -463,8 +468,7 @@ We asked a positional question: in long-horizon neural PDE prediction, where sho
 
 \textbf{Data archaeology}. In the course of this study we identified and discarded two batches of legacy data: an old KS dataset that satisfies a damped variant of the equation (monotonically decaying energy, no chaos), and an old System-B dataset in which slices of a 3D field were passed off as 2D (divergence ratio $\approx1.0$, vorticity-equation residual $2$--$24$). ``Zero-crash'' conclusions once drawn on these datasets do not hold under strict criteria. Verification scripts and the deprecation record are released with the code (SI-C).
 
-\textbf{Models and training}. \emph{3D backbone}: spectral-split hard side (Leray projection~\eqref{eq:leray} $+$ gate truncation~\eqref{eq:fusion}, both active in the training forward pass and gradient-permeable) $+$ soft branch (3-expert spectral-convolution MoE, trained jointly with the hard side) $+$ zero-parameter calibration gate (Eqs.~\eqref{eq:gate}--\eqref{eq:fusion}) $+$ memory-bank FiLM (Supplementary Information); the dissipation envelope~\eqref{eq:env-decay} is an inference-path safety net applied identically at evaluation, deliberately never seen during training (Section~\ref{sec:arch}); $5.10$M parameters; 100 epochs, AdamW $10^{-4}$ with cosine annealing, rollout$=3$ curriculum (Eq.~\eqref{eq:loss}) with scheduled sampling, one RTX 5070 Laptop GPU (8 GB), about 700 s/epoch. The hard-side bottleneck autoencoder uses spectral normalisation as a standard Lipschitz stabiliser (not required by any theorem; Corollary~\ref{cor:bounded} rests only on the envelope and the boundedness of forcing/grid wavenumbers). \emph{2D/1D}: the anchor is the exact linear propagator (Eqs.~\eqref{eq:ks-symbol}--\eqref{eq:phi1}; the PhysicsSpec is read from the data attributes, never hard-coded), the soft branch is an FNO2d/FNO1d (modes 12/16, width 32/64), and the three arms are parameter-matched (2D $1.19$M, 1D $0.29$M); 50 epochs with the same rollout curriculum; the full single-system experiment (including data generation) takes $<1$ hour. \emph{Implementation}: all physical operators are spectral; wavenumber grids and normalisation statistics are registered as buffers and saved with the checkpoint; on the $64^2{\to}128^2$ transfer the grid is rebuilt ($\lambda(\bm{k})$ is grid-independent---the structural basis of lossless resolution transfer); the envelope's per-step $\Delta t$ is passed from data-timestamp differences; the per-step composition order (gate $\rightarrow$ FiLM $\rightarrow$ divergence projection $\rightarrow$ two-layer energy mechanism) is identical across the equations, the figures and the released code (pseudocode in SI-E); the gate trust radius is capped at the pre-deployment constant $R_{\max}=5.0$ (normalised units; Eq.~\eqref{eq:trunc})---% TODO(verify): after the multi-seed chain, measure max(1.54*ê_g) over all eval runs and confirm the cap is never activated; adjust value if needed.
-the cap is a safety bound, not an active mechanism. \emph{Statistics}: mean$\pm$std across ICs; per-IC raw data released with the code. \emph{Plotting}: all figures are reproduced from the result JSONs by \texttt{scripts/make\_figures\_nc.py} in one command.
+\textbf{Models and training}. \emph{3D backbone}: spectral-split hard side (Leray projection~\eqref{eq:leray} $+$ gate truncation~\eqref{eq:fusion}, both active in the training forward pass and gradient-permeable) $+$ soft branch (3-expert spectral-convolution MoE, trained jointly with the hard side) $+$ zero-parameter calibration gate (Eqs.~\eqref{eq:gate}--\eqref{eq:fusion}) $+$ memory-bank FiLM (Supplementary Information); the dissipation envelope~\eqref{eq:env-decay} is an inference-path safety net applied identically at evaluation, deliberately never seen during training (Section~\ref{sec:arch}); $5.10$M parameters; 100 epochs, AdamW $10^{-4}$ with cosine annealing, rollout$=3$ curriculum (Eq.~\eqref{eq:loss}) with scheduled sampling, one RTX 5070 Laptop GPU (8 GB), about 700 s/epoch. The hard-side bottleneck autoencoder uses spectral normalisation as a standard Lipschitz stabiliser (not required by any theorem; Corollary~\ref{cor:bounded} rests only on the envelope and the boundedness of forcing/grid wavenumbers). \emph{2D/1D}: the anchor is the exact linear propagator (Eqs.~\eqref{eq:ks-symbol}--\eqref{eq:phi1}; the PhysicsSpec is read from the data attributes, never hard-coded), the soft branch is an FNO2d/FNO1d (modes 12/16, width 32/64), and the three arms are parameter-matched (2D $1.19$M, 1D $0.29$M); 50 epochs with the same rollout curriculum; the full single-system experiment (including data generation) takes $<1$ hour. \emph{Implementation}: all physical operators are spectral; wavenumber grids and normalisation statistics are registered as buffers and saved with the checkpoint; on the $64^2{\to}128^2$ transfer the grid is rebuilt ($\lambda(\bm{k})$ is grid-independent---the structural basis of lossless resolution transfer); the envelope's per-step $\Delta t$ is passed from data-timestamp differences; the per-step composition order (explicit anchor $\rightarrow$ closure prediction $\rightarrow$ gate truncation $\rightarrow$ FiLM modulation $\rightarrow$ divergence projection $\rightarrow$ energy-budget closure $\rightarrow$ dissipation envelope) is identical across the equations, the figures and the released code (pseudocode in SI-E); the gate trust radius is capped at the pre-deployment constant $R_{\max}=5.0$ (normalised units; Eq.~\eqref{eq:trunc}), which binds on only $0.7\%$ of voxels over 200-step deployment rollouts (Section~\ref{sec:shape})---the cap is a safety bound, not an active mechanism. \emph{Statistics}: mean$\pm$std across ICs; per-IC raw data released with the code. \emph{Plotting}: all figures are reproduced from the result JSONs by \texttt{scripts/make\_figures\_nc.py} in one command.
 
 \begin{table}[htbp]
 \centering\small
@@ -595,13 +599,13 @@ The full codebase is available at \url{https://github.com/chenyuze1234/rcln-pde}
 \end{thebibliography}
 
 \section*{Acknowledgements}
-The author received no specific funding for this work.
+The authors received no specific funding for this work.
 
 \section*{Author contributions}
-Y.C.: Conceptualization, Methodology, Software, Validation, Formal analysis, Investigation, Writing -- Original Draft, Writing -- Review \& Editing, Visualization.
+Y.C.: Conceptualization, Methodology, Software, Validation, Formal analysis, Investigation, Writing -- Original Draft, Visualization. Y.M.: Supervision, Writing -- Review \& Editing. C.Z.: Supervision, Writing -- Review \& Editing. Y.M. and C.Z. jointly supervised this work.
 
 \section*{Competing interests}
-The author declares no competing interests.
+The authors declare no competing interests.
 
 \section*{Ethics declarations}
 This work did not involve human participants, human data, or animal experiments.
