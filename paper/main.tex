@@ -57,7 +57,6 @@ Here we ask: when and why must physical constraints remain active along the recu
 
 \textbf{Relation to prior work}. The closest lines are the ones named above, and the distinctions are specific. PDE-Refiner\cite{lippe2023pderefiner} and SGNO\cite{li2026sgno} target the same long-horizon setting: the former stabilises by iterative refinement of the output distribution, the latter by constraining the spectral generator of the latent step; neither varies the position of \emph{physical} constraints as the experimental variable, and our KS and Kolmogorov protocols overlap with theirs deliberately, enabling like-for-like reading. Output projection\cite{valente2025projection} and PhysicsCorrect\cite{huang2025physicorrect} certify selected constraints post-hoc; our inference-only arm adopts exactly this position and fails differently (Results), so we do not claim that post-hoc constraints are bypassable in general---only that they do not regulate the recurrent dynamics between projections. PeRCNN\cite{rao2023percnn}, hard-constrained turbulence coarse-graining\cite{mohan2023hard}, Deep Conservation\cite{lee2021deepconservation} and S-OnsagerNet\cite{chen2024onsagernet} establish that architecture-level physics is achievable and valuable; our aim is not to re-introduce it but to identify when it is \emph{necessary}. ANI\cite{wang2026ani} shares the prior-plus-corrector philosophy; our anchor differs in being parameter-free and non-trainable, our correction is explicitly radius-limited at every voxel, and we analyse the anchor--corrector discrepancy diagnostically. Structure-preserving numerical methods\cite{hairer2006gni,chorin1968} are complete for known discrete operators; our theorems extend the same certificate logic to transitions containing a neural network (Discussion; SI-B). Data-driven weather and climate surrogates\cite{lam2023graphcast,kochkov2024neuralgcm,kochkov2021mlcfd,yuval2020stable} achieve stability through engineering of the training distribution and the coupling, and latent-space operator learning\cite{kontolati2024latent} shows the value of structured transitions; our question is orthogonal and our testbeds are canonical by design. Within this journal, physics-informed approaches have precedent in identifiability and prediction studies\cite{kharazmi2021identifiability}; our contribution targets the complementary, dynamical-stability side. Uncertainty quantification (MC-dropout\cite{gal2016dropout}, deep ensembles\cite{lakshminarayanan2017}) estimates predictive spread at the price of multiple stochastic passes; the discrepancy signal here is a single-pass geometric quantity, and we compare the two empirically rather than claim equivalence (Section~\ref{sec:upi}).
 
-
 \section{Results}
 
 \subsection{Architecture: physics on the inference path}\label{sec:arch}
@@ -141,9 +140,9 @@ The complete per-step update composes the gate with the downstream operators in 
 where $\mathrm{FiLM}$ is the memory-bank feature-wise linear modulation (per-channel scale and shift from the memory readout; Supplementary Information), $\Pi_{\mathrm{div}}$ the spectral Leray projection~\eqref{eq:leray} active in both training and inference, and $\Pi_{E}$ the two-layer energy mechanism of Section~\ref{sec:envelope} (inference-path only; the training forward pass stops at $\Pi_{\mathrm{div}}$).
 The gating signal $s(\bm{x},t)$ is additionally exported as the discrepancy indicator (Section~\ref{sec:upi}).
 
-\textbf{Why this is not ``an FNO with hard constraints''}. The three components have legible, disjoint roles: the anchor answers \emph{what does the known physics allow} (run alone, its energy stays near the truth but rL2 $>1.5$---feasibility without accuracy); the residual learner answers \emph{what does the known physics fail to explain} (run alone, its energy drifts to $2.9\times$---free correction necessarily leaves the feasible set); the geometry gate answers \emph{how much correction is each step allowed}. Removing any single component destroys the main result (zero crashes with $1.1\%$ energy bias; Table~\ref{tab:ablation}). Components of a modular stack can be deleted one by one without fatal damage; ours cannot---that is the criterion distinguishing architecture design from stacking. Moreover, the constraints participate in the forward pass and in back-propagation: the residual learner is trained directly to predict \emph{along the boundary of the feasible set}, which is structurally different from any post-processing pipeline.
+\textbf{Why this is not ``an FNO with hard constraints''}. The three components have legible, disjoint roles: the anchor answers \emph{what does the known physics allow} (run alone, its energy stays near the truth but rL2 $>1.5$---feasibility without accuracy); the residual learner answers \emph{what does the known physics fail to explain} (run alone, its energy drifts to $2.9\times$---free correction necessarily leaves the feasible set); the geometry gate answers \emph{how much correction is each step allowed}. Removing any single component destroys the main result (zero crashes with $1.1\%$ energy bias; \ref{tab:ablation}). Components of a modular stack can be deleted one by one without fatal damage; ours cannot---that is the criterion distinguishing architecture design from stacking. Moreover, the constraints participate in the forward pass and in back-propagation: the residual learner is trained directly to predict \emph{along the boundary of the feasible set}, which is structurally different from any post-processing pipeline.
 
-\textbf{What ``architectural'' means precisely}. We call a constraint architectural if and only if all three hold: (i) it is evaluated \emph{inside} the forward pass, so every prediction the network emits has passed through it; (ii) it is (piecewise) differentiable and participates in back-propagation, so the learner is optimised \emph{through} the constraint; and (iii) it cannot be bypassed by any learnable component. Under this criterion the Leray projection and the gate truncation qualify fully (both are active in the training forward pass); a loss penalty fails (i)--(iii) outright. The dissipation envelope qualifies on (i) and (iii) but \emph{not} on (ii): it is an inference-path safety net that the training never sees, and we state this explicitly rather than blur the boundary---its role is deliberately limited to bounding the stepwise energy budget, never to reshaping the field. The position control in Table~\ref{tab:main} (the same envelope mechanism applied as pure post-processing on the trained FNO) shows why this distinction matters in practice: a hard ceiling trivially prevents blow-up in either position (zero crashes for both), but the FNO backbone, which never learned to respect any constraint, persistently drives energy upward, so the post-hoc copy must fight the backbone at nearly every step ($82\%$ of steps hit the ceiling)---pinning $E/E_0$ at $0.997$ against a truth of $0.952$ and destroying the decay physics. The anchored backbone, trained through the projection and the gate, errs on the dissipative side instead, and the embedded envelope acts as a \emph{standing dissipation governor}: it lifts the over-dissipating prediction on $91\%$ of steps and caps upward overshoots on $9\%$, so the true decay survives ($0.957$ vs $0.952$). \emph{Position determines whether a constraint is a law the model has internalised or a prosthetic that replaces the dynamics.}
+\textbf{What ``architectural'' means precisely}. We call a constraint architectural if and only if all three hold: (i) it is evaluated \emph{inside} the forward pass, so every prediction the network emits has passed through it; (ii) it is (piecewise) differentiable and participates in back-propagation, so the learner is optimised \emph{through} the constraint; and (iii) it cannot be bypassed by any learnable component. Under this criterion the Leray projection and the gate truncation qualify fully (both are active in the training forward pass); a loss penalty fails (i)--(iii) outright. The dissipation envelope qualifies on (i) and (iii) but \emph{not} on (ii): it is an inference-path safety net that the training never sees, and we state this explicitly rather than blur the boundary---its role is deliberately limited to bounding the stepwise energy budget, never to reshaping the field. The position control in \ref{tab:main} (the same envelope mechanism applied as pure post-processing on the trained FNO) shows why this distinction matters in practice: a hard ceiling trivially prevents blow-up in either position (zero crashes for both), but the FNO backbone, which never learned to respect any constraint, persistently drives energy upward, so the post-hoc copy must fight the backbone at nearly every step ($82\%$ of steps hit the ceiling)---pinning $E/E_0$ at $0.997$ against a truth of $0.952$ and destroying the decay physics. The anchored backbone, trained through the projection and the gate, errs on the dissipative side instead, and the embedded envelope acts as a \emph{standing dissipation governor}: it lifts the over-dissipating prediction on $91\%$ of steps and caps upward overshoots on $9\%$, so the true decay survives ($0.957$ vs $0.952$). \emph{Position determines whether a constraint is a law the model has internalised or a prosthetic that replaces the dynamics.}
 
 \textbf{Training objective}. A multi-step curriculum loss with scheduled sampling:
 \begin{equation}
@@ -226,23 +225,7 @@ where $Z=\tfrac12\langle\omega^2\rangle$ is the enstrophy. In decaying flow ($\b
 
 \subsection{A controlled protocol for long-horizon comparison}\label{sec:setup}
 
-Fair comparison is itself part of the methodology. \textbf{Every compared model is retrained under an identical protocol}: same data split, same training budget, same optimiser, same rollout curriculum---the only experimental variable is \emph{where the physics is placed}. Three arms per system: (i) \textbf{anchor}: architecture-level physics (anchor $+$ envelope $+$ gate); (ii) \textbf{loss-level}: the same network trained with $\mathcal{L}_{\mathrm{MSE}}+0.1\,\mathcal{L}_{\mathrm{PDE\ residual}}$; (iii) \textbf{none}: purely data-driven. Parameter counts are strictly matched (3D $5.10$M; 2D $1.19$M; 1D $0.29$M; the anchor adds zero parameters). External baselines---FNO (official implementation\cite{kossaifi2024library}), DPOT\cite{hao2024dpot}, U-Net\cite{ronneberger2015}, FNO with physics regularisation---are retrained under the same protocol as the 3D backbone; PhysicsCorrect\cite{huang2025physicorrect}---whose official release covers only 2D Navier--Stokes, wave and KS settings, with correction cost scaling quadratically in grid size---has no official 3D implementation, so it is approximately reproduced on our 3D backbone and labelled as such; Transolver\cite{wu2024transolver} diverged under the same protocol (its fp32 fallback also exceeded the pre-set time budget) and was abandoned by a pre-registered rule, with DPOT satisfying the ``at least one recent method'' requirement. Datasets, generators and verification discipline are detailed in Methods; the crash criteria are given in Table~\ref{tab:crash}. A claim of ``zero crashes'' is meaningful only under strict criteria: a previous internal baseline line reported zero crashes under a lenient rL2${}>10$ threshold, where a one-sided $1.05\times$ anti-blow-up net compounded over 200 steps into an effective $1.7\times10^{4}$ energy ceiling---no constraint at all.
-
-\begin{table}[htbp]
-\centering\small
-\caption{\textbf{Crash criteria and rationale}. Post-crash metrics are frozen-filled to step $K$ to avoid survivorship bias.}
-\label{tab:crash}
-\begin{tabular}{lll}
-\toprule
-Criterion & Threshold & Rationale \\
-\midrule
-Non-finite value & NaN/Inf & Numerical blow-up \\
-Relative $L_2$ error & $>5$ & Field corruption \\
-Energy ratio $E/E_0$ & $>5$ & Energy explosion \\
-Post-crash handling & Frozen filling & Avoids survivorship bias \\
-\bottomrule
-\end{tabular}
-\end{table}
+Fair comparison is itself part of the methodology. \textbf{Every compared model is retrained under an identical protocol}: same data split, same training budget, same optimiser, same rollout curriculum---the only experimental variable is \emph{where the physics is placed}. Three arms per system: (i) \textbf{anchor}: architecture-level physics (anchor $+$ envelope $+$ gate); (ii) \textbf{loss-level}: the same network trained with $\mathcal{L}_{\mathrm{MSE}}+0.1\,\mathcal{L}_{\mathrm{PDE\ residual}}$; (iii) \textbf{none}: purely data-driven. Parameter counts are strictly matched (3D $5.10$M; 2D $1.19$M; 1D $0.29$M; the anchor adds zero parameters). External baselines---FNO (official implementation\cite{kossaifi2024library}), DPOT\cite{hao2024dpot}, U-Net\cite{ronneberger2015}, FNO with physics regularisation---are retrained under the same protocol as the 3D backbone; PhysicsCorrect\cite{huang2025physicorrect}---whose official release covers only 2D Navier--Stokes, wave and KS settings, with correction cost scaling quadratically in grid size---has no official 3D implementation, so it is approximately reproduced on our 3D backbone and labelled as such; Transolver\cite{wu2024transolver} diverged under the same protocol (its fp32 fallback also exceeded the pre-set time budget) and was abandoned by a pre-registered rule, with DPOT satisfying the ``at least one recent method'' requirement. Datasets, generators and verification discipline are detailed in Methods; the crash criteria are given in \ref{tab:crash}. A claim of ``zero crashes'' is meaningful only under strict criteria: a previous internal baseline line reported zero crashes under a lenient rL2${}>10$ threshold, where a one-sided $1.05\times$ anti-blow-up net compounded over 200 steps into an effective $1.7\times10^{4}$ energy ceiling---no constraint at all.
 
 \textbf{Evaluation conventions}. rL2 is computed in physical space (after de-normalisation); $K\in\{1,10,50,100,200\}$; $20$ independent test trajectories on the main system (the three principal model families---ours, FNO, anchored-FNO---under $5$ seeds each, i.e.\ $100$ rollouts; the remaining arms under one seed, $20$ rollouts), 5 ICs in-domain for 2D, 3 ICs for OOD; envelope interventions are logged exhaustively; every long-horizon comparison reports the triple (rL2, $E/E_0$, crash rate); per-IC raw curves are released with the code. \textbf{Uncertainty quantification of the numbers themselves}: 95\% confidence intervals are $t$-intervals from the per-rollout standard deviation, and crash rates carry Wilson score intervals; a $0/100$ crash count has a Wilson 95\% upper bound of $0.04$ ($0/20$: $0.16$), so our stability claims are stated as ``no crash observed under $n$ independent trajectories'' rather than ``crash probability zero''. All conclusions reported below rest on effect sizes that exceed the corresponding intervals by at least an order of magnitude (energy explosion $5.1\times$, dissipation-rate destruction), with one exception stated explicitly: at long horizon the approximate PhysicsCorrect reproduction attains \emph{lower} pointwise error than our model (rL2@200 $0.962$ vs $1.135$)---we do not claim pointwise superiority there; the decisive contrast against the post-hoc position is the energy history and the dissipation profile ($33\%$ of its steps re-create energy in a decaying flow), not the pointwise gap.
 
@@ -257,34 +240,7 @@ Figure~\ref{fig:fig1} contrasts the three positions where physics can live in a 
 \label{fig:fig1}
 \end{figure}
 
-\begin{table}[htbp]
-\centering\small
-\caption{\textbf{Main long-horizon benchmark} (3D TGV, Re$=6400$, $K{=}200$, $20$ independent test trajectories, mean$\pm$std). Ours, FNO and the anchored-FNO ablation are evaluated under $5$ seeds ($100$ rollouts); the remaining arms under one seed ($20$ rollouts). Truth: $E/E_0$ at $K{=}200$ is $0.9518$. All models are retrained under the identical protocol (Section~\ref{sec:setup}); the only experimental variable is where the physics is placed.}
-\label{tab:main}
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{@{}lccccccc@{}}
-\toprule
-Model & Params & rL2@50 & rL2@100 & rL2@200 & $E/E_0$@200 & Crashes & ms/step \\
-\midrule
-\textbf{RCLN (ours)} & 5.10M & $\bm{0.125}$ & $\bm{0.236}$ & $\bm{0.811\pm0.073}$ & $\bm{0.946\pm0.004}$ & $\bm{0/100}$ & 51.9 \\
-FNO (official) & 6.70M & $0.934$ & $1.693$\textsuperscript{*} & $1.693$\textsuperscript{*} & $5.104$ & $100/100$ & 58 \\
-U-Net & 6.32M & $0.369$ & $0.805$ & $1.195$ & $0.625$ & $0/20$ & 42 \\
-DPOT (recent) & 10.82M & $1.116$ & $1.381$ & $1.447$ & $1.533$ & $0/20$ & 16 \\
-FNO$+$PhysReg & 6.70M & $0.392$ & $2.196$\textsuperscript{*} & $2.196$\textsuperscript{*} & $5.076$ & $20/20$ & 70 \\
-PhysicsCorrect (approx.) & 6.70M & $0.266$ & $0.503$ & $0.962$ & $0.914$ & $0/20$ & 74 \\
-FNO$+$post-hoc envelope & 6.70M & $0.293$ & $0.946$ & $1.385$ & $0.997$ & $0/20$ & 74 \\
-\midrule
-RCLN w/ learned anchor (ablation) & 5.10M & $0.982$ & $1.064$ & $1.135\pm0.037$ & $0.957\pm0.005$\textsuperscript{\dag} & $0/100$ & 64.9 \\
-\emph{Explicit spectral step (counterfactual)} & 0 & $0.057$ & $0.143$ & $0.773$ & $0.947$ & $0/3$ & --- \\
-\bottomrule
-\end{tabular}
-\vspace{2pt}
-\begin{minipage}{\linewidth}\footnotesize
-\textsuperscript{*}Frozen-filled after crash (post-crash metrics are held at the crash-step value to avoid survivorship bias; FNO's rL2@50 is measured pre-crash). Bold rL2: best among non-crashing learned models; bold $E/E_0$ and crash count: closest to the truth $0.9518$ and largest no-crash sample. \textsuperscript{\dag}The learned-anchor ablation (same backbone and protocol, learned low-wavenumber anchor in place of the explicit step) is shown under an over-tight envelope constant $c_d{=}0.1$ that the truth itself would violate step-by-step; under the properly calibrated $c_d{=}1.218$ its energy over-drains to $0.80$---i.e.\ its acceptable end-point energy is envelope-imposed rather than model-emergent, unlike the explicit-anchor row whose envelope the truth satisfies. The final row is not a learned model but the explicit pseudo-spectral step of the governing equations (RK4, one substep per frame, $3$ test trajectories)---a deliberately uncomfortable counterfactual analysed in Section~\ref{sec:explicit}: with fully known physics at matched resolution it dominates every learned row, which is precisely why the learned components of our architecture target the regimes where such a step degrades or is unavailable. $0/100$ crashes correspond to a Wilson 95\% upper bound of $0.04$ per trajectory ($0/20$: $0.16$). The last learned row is a position control: the \emph{same} envelope mechanism applied as pure post-processing on the trained FNO---crashes are capped, but $82\%$ of steps hit the ceiling, the decay dynamics is destroyed ($E/E_0$ pinned at $0.997$ against the truth $0.952$), and rL2@200 degrades relative to the embedded position. The approximate PhysicsCorrect reproduction violates the one-sided dissipation budget on $33\%$ of steps (energy re-created in a decaying flow); its end-point energy $0.914$ results from partial cancellation of an over-damped first half ($0.727$ at $k{=}134$) by subsequent energy re-creation.
-\end{minipage}
-\end{table}
-
-\textbf{Energy fidelity}: ours (5.10M parameters, trained 100 epochs with the $R{=}3$ rollout curriculum of Eq.~\eqref{eq:loss} on a single RTX 5070 GPU, envelope constant $c_d{=}1.218$ calibrated once on training-trajectory statistics---a calibration the truth itself satisfies step-by-step) reaches $E/E_0=0.946\pm0.004$ at $K{=}200$---within $0.7\%$ of the truth $0.9518$, over $100$ rollouts with zero crashes (Wilson 95\% upper bound $0.04$)---the only model that neither amplifies energy (FNO family: $5.1\times$ explosion) nor over-dissipates (U-Net: $0.625$) \emph{while} retaining the lowest pointwise error among non-crashing learned models. \textbf{Accuracy}: with the explicit-law anchor, ours attains rL2 $0.125/0.236/0.811$ at $k{=}50/100/200$, improving on the strongest post-hoc baseline (PhysicsCorrect $0.266/0.503/0.962$) at every horizon, and approaching the explicit-step counterfactual ($0.057/0.143/0.773$)---the residual gap to a fully-informed solver at matched resolution. The learned-anchor ablation isolates the anchor choice: swapping the explicit step for a learned low-wavenumber anchor degrades rL2@200 from $0.811$ to $1.135$ and forces an over-tight envelope to keep energy physical (Table~\ref{tab:main}, dagger). PhysicsCorrect's energy history dips to $0.727$ at $k{=}134$ and then re-creates energy on $33\%$ of the remaining steps---in a decaying flow whose energy must decrease monotonically. \textbf{Error-growth dynamics}: the first-crash steps of FNO (median $k{=}65$, range $47$--$79$, $100/100$ rollouts) and of FNO$+$PhysReg ($k{=}96$ in all $20$ rollouts) are tightly clustered---not gradual degradation but threshold-crossing blow-up, consistent with the mechanism ``missing constraint $\to$ high-wavenumber energy pile-up $\to$ aliasing instability''. U-Net deserves a separate note: zero crashes and a competitive rL2@200 ($1.195$) look robust, but its energy falls to $62.5\%$---its ``stability'' is bought by dissipating itself into a low-energy state, visible only if the energy budget is reported. \textbf{Cost}: single-step inference $52$ ms, comparable to the FNO backbone ($58$ ms) and cheaper than the learned-anchor variant ($65$ ms, which additionally pays for the anchor network), with zero extra parameters for the anchor itself.
+\textbf{Energy fidelity}: ours (5.10M parameters, trained 100 epochs with the $R{=}3$ rollout curriculum of Eq.~\eqref{eq:loss} on a single RTX 5070 GPU, envelope constant $c_d{=}1.218$ calibrated once on training-trajectory statistics---a calibration the truth itself satisfies step-by-step) reaches $E/E_0=0.946\pm0.004$ at $K{=}200$---within $0.7\%$ of the truth $0.9518$, over $100$ rollouts with zero crashes (Wilson 95\% upper bound $0.04$)---the only model that neither amplifies energy (FNO family: $5.1\times$ explosion) nor over-dissipates (U-Net: $0.625$) \emph{while} retaining the lowest pointwise error among non-crashing learned models. \textbf{Accuracy}: with the explicit-law anchor, ours attains rL2 $0.125/0.236/0.811$ at $k{=}50/100/200$, improving on the strongest post-hoc baseline (PhysicsCorrect $0.266/0.503/0.962$) at every horizon, and approaching the explicit-step counterfactual ($0.057/0.143/0.773$)---the residual gap to a fully-informed solver at matched resolution. The learned-anchor ablation isolates the anchor choice: swapping the explicit step for a learned low-wavenumber anchor degrades rL2@200 from $0.811$ to $1.135$ and forces an over-tight envelope to keep energy physical (\ref{tab:main}, dagger). PhysicsCorrect's energy history dips to $0.727$ at $k{=}134$ and then re-creates energy on $33\%$ of the remaining steps---in a decaying flow whose energy must decrease monotonically. \textbf{Error-growth dynamics}: the first-crash steps of FNO (median $k{=}65$, range $47$--$79$, $100/100$ rollouts) and of FNO$+$PhysReg ($k{=}96$ in all $20$ rollouts) are tightly clustered---not gradual degradation but threshold-crossing blow-up, consistent with the mechanism ``missing constraint $\to$ high-wavenumber energy pile-up $\to$ aliasing instability''. U-Net deserves a separate note: zero crashes and a competitive rL2@200 ($1.195$) look robust, but its energy falls to $62.5\%$---its ``stability'' is bought by dissipating itself into a low-energy state, visible only if the energy budget is reported. \textbf{Cost}: single-step inference $52$ ms, comparable to the FNO backbone ($58$ ms) and cheaper than the learned-anchor variant ($65$ ms, which additionally pays for the anchor network), with zero extra parameters for the anchor itself.
 
 \begin{figure}[htbp]
 \centering
@@ -297,101 +253,30 @@ RCLN w/ learned anchor (ablation) & 5.10M & $0.982$ & $1.064$ & $1.135\pm0.037$ 
 
 The architecture of Section~\ref{sec:arch} embeds physics on the inference path, but one component still sits uneasily with the ``law'' rhetoric: the anchor itself is \emph{learned}. A learned anchor is trained with a prediction loss, and nothing pins it to physics---in an earlier checkpoint lineage we observed the anchor drift to anti-correlation with the truth (cosine $-0.914$), a pathology that only a later realignment protocol repaired. We therefore asked the radical question: if the governing equations are known, why should a network re-learn them? We replaced the learned anchor with a \textbf{zero-parameter explicit pseudo-spectral Navier--Stokes step} (RK4, $2/3$ dealiasing, Leray projection, one substep per frame, $\nu=1/6400$) and probed it against the learned anchor on identical inputs.
 
-The result is unambiguous. Single-step, on unseen test initial conditions: relative L2 error $0.016$ (explicit) versus $0.143$ (learned anchor); on training pairs the explicit step is machine-exact, because it shares its numerics with the data generator. Long horizon ($K{=}200$, three independent test trajectories): the explicit stepper alone reaches rL2 $0.057/0.143/0.773$ at $k{=}50/100/200$ with $E/E_0{=}0.947$ (truth $0.9518$) and zero crashes---\emph{dominating every learned model in Table~\ref{tab:main} on every metric simultaneously}. We report this counterfactual deliberately, although it is uncomfortable: at matched resolution with fully known physics, the explicit step \emph{is} the cheap solver, and no learned component can beat it pointwise. The learned surrogate must therefore earn its place exactly where the explicit step degrades or is unavailable. We mapped this degradation boundary systematically (Table~\ref{tab:degrade}): the explicit step is exact only while four preconditions hold simultaneously---\emph{periodicity} (on JHTDB isotropic-turbulence cutouts, Re$_\lambda{=}433$, the non-periodic subvolume with boundary jumps $2.5$--$4\times$ the local increment scale makes the same stepper diverge within two steps; the forcing of stationary HIT is not analytically available at all), \emph{known parameters} (a factor-2 error in $\nu$---the mildest possible misspecification of a real experiment---biases end-point energy by $+2.2\%$/$-4.3\%$; the over-estimated-$\nu$ variant even \emph{improves} rL2, because over-damping suppresses chaotic divergence while corrupting the physics---the rL2--energy decoupling of Fig.~\ref{fig:fig3}b in reverse), \emph{adequate resolution} (spectral truncation to $32^3$ degrades rL2@200 by $19\%$ and over-energises the flow), and \emph{a stable time step} (one RK4 step per $4$ frames---a $4\times$ cheaper solver---crosses the explicit stability limit and crashes on all three trajectories; per $8$ frames it crashes within $16$ steps). These failures are precisely the regimes in which neural surrogates are deployed. They delineate the applicability boundary of an explicit-law anchor and complete the architecture: \emph{the law, written exactly, supplies the ideal point and the ideal range; the learnable components exist to close the gap between ideal and reality}---the learned closure (formerly the soft branch) corrects under-resolution and misspecified terms, and the geometry gate bounds how far that correction may be trusted.
+The result is unambiguous. Single-step, on unseen test initial conditions: relative L2 error $0.016$ (explicit) versus $0.143$ (learned anchor); on training pairs the explicit step is machine-exact, because it shares its numerics with the data generator. Long horizon ($K{=}200$, three independent test trajectories): the explicit stepper alone reaches rL2 $0.057/0.143/0.773$ at $k{=}50/100/200$ with $E/E_0{=}0.947$ (truth $0.9518$) and zero crashes---\emph{dominating every learned model in \ref{tab:main} on every metric simultaneously}. We report this counterfactual deliberately, although it is uncomfortable: at matched resolution with fully known physics, the explicit step \emph{is} the cheap solver, and no learned component can beat it pointwise. The learned surrogate must therefore earn its place exactly where the explicit step degrades or is unavailable. We mapped this degradation boundary systematically (\ref{tab:degrade}): the explicit step is exact only while four preconditions hold simultaneously---\emph{periodicity} (on JHTDB isotropic-turbulence cutouts, Re$_\lambda{=}433$, the non-periodic subvolume with boundary jumps $2.5$--$4\times$ the local increment scale makes the same stepper diverge within two steps; the forcing of stationary HIT is not analytically available at all), \emph{known parameters} (a factor-2 error in $\nu$---the mildest possible misspecification of a real experiment---biases end-point energy by $+2.2\%$/$-4.3\%$; the over-estimated-$\nu$ variant even \emph{improves} rL2, because over-damping suppresses chaotic divergence while corrupting the physics---the rL2--energy decoupling of Fig.~\ref{fig:fig3}b in reverse), \emph{adequate resolution} (spectral truncation to $32^3$ degrades rL2@200 by $19\%$ and over-energises the flow), and \emph{a stable time step} (one RK4 step per $4$ frames---a $4\times$ cheaper solver---crosses the explicit stability limit and crashes on all three trajectories; per $8$ frames it crashes within $16$ steps). These failures are precisely the regimes in which neural surrogates are deployed. They delineate the applicability boundary of an explicit-law anchor and complete the architecture: \emph{the law, written exactly, supplies the ideal point and the ideal range; the learnable components exist to close the gap between ideal and reality}---the learned closure (formerly the soft branch) corrects under-resolution and misspecified terms, and the geometry gate bounds how far that correction may be trusted.
 
-\begin{table}[htbp]
-\centering\small
-\caption{\textbf{Precondition boundary of the explicit spectral step} (three test trajectories, $K{=}200$, $\nu{=}1/6400$; the reference row reproduces the counterfactual of Table~\ref{tab:main}). The explicit step dominates only while all four preconditions hold; each violated precondition converts its strength into a distinct failure mode. rL2 of crashed arms is not defined (NaN).}
-\label{tab:degrade}
-\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{3.2cm}*{4}{>{\raggedright\arraybackslash}X}>{\raggedright\arraybackslash}p{1.1cm}@{}}
-\toprule
-Precondition violated & rL2@50 & rL2@100 & rL2@200 & $E/E_0$@200 & crash \\
-\midrule
-\emph{none (reference)} & 0.057 & 0.143 & 0.773 & 0.947 & 0/3 \\
-time step ($\Delta t{\times}4$) & --- & --- & --- & --- & 3/3 ($k{\approx}40$) \\
-time step ($\Delta t{\times}8$) & --- & --- & --- & --- & 3/3 ($k{=}16$) \\
-resolution ($32^3$ trunc.) & 0.072 & 0.194 & 0.918 & 0.968 & 0/3 \\
-parameter ($\nu{\times}2$) & 0.049 & 0.118 & 0.683 & 0.911 & 0/3 \\
-parameter ($\nu{\times}0.5$) & 0.062 & 0.159 & 0.828 & 0.973 & 0/3 \\
-periodicity (JHTDB cutout) & \multicolumn{4}{l}{NaN within 2 steps (Gibbs ringing)} & 3/3 \\
-\bottomrule
-\end{tabularx}
-\\[2pt]
-{\footnotesize Truth $E/E_0$@200 $=0.9518$. $\Delta t{\times}4$/$\times8$: one RK4 step per 4/8 frames ($4\times$/$8\times$ cheaper than reference). $32^3$: spectral truncation, rollout at $32^3$, zero-padded back to $64^3$ for scoring. The $\nu{\times}2$ row's lower rL2 is an over-damping artefact, not better physics (energy biased $-4.3\%$).}
-\end{table}
-\textbf{The explicit anchor in deployment} (Table~\ref{tab:main}, top row). Trained against the explicit anchor ($5$ seeds, identical protocol), the model deploys with two inference-path additions that the counterfactual justifies: the geometry gate budgets the closure's amplitude, and an \emph{energy-budget closure} (EBC) projection removes any energy-creating radial component of the correction and renormalises the fused state to the anchor's own energy, so that the law sets the energy budget and the closure only decides where to spend it. EBC is not decoration: the raw trained closure systematically \emph{creates} energy ($+0.3\%$ per step, accumulating to $E/E_0{=}1.094$ at $K{=}200$ without it), a first-order tangential projection over-drains ($0.851$) because the second-order term and drift-inflated dissipation compound, and only the exact budget projection lands on the anchor's energy trajectory. Over $100$ rollouts ($5$ seeds $\times$ $20$ independent trajectories, $K{=}200$): rL2 $0.125/0.236/0.811\pm0.073$, $E/E_0$ $0.946\pm0.004$ (truth $0.9518$), zero crashes, $52$ ms/step---approaching the explicit-step counterfactual and dominating every learned baseline on pointwise error and energy fidelity simultaneously. We report per our own standard that the dissipation envelope's floor is contacted on nearly every step---the constraint is permanently active, which is the architecture's claim, not a defect, but it means the energy figure is jointly produced by anchor, closure and envelope rather than by the network alone.
+\textbf{The explicit anchor in deployment} (\ref{tab:main}, top row). Trained against the explicit anchor ($5$ seeds, identical protocol), the model deploys with two inference-path additions that the counterfactual justifies: the geometry gate budgets the closure's amplitude, and an \emph{energy-budget closure} (EBC) projection removes any energy-creating radial component of the correction and renormalises the fused state to the anchor's own energy, so that the law sets the energy budget and the closure only decides where to spend it. EBC is not decoration: the raw trained closure systematically \emph{creates} energy ($+0.3\%$ per step, accumulating to $E/E_0{=}1.094$ at $K{=}200$ without it), a first-order tangential projection over-drains ($0.851$) because the second-order term and drift-inflated dissipation compound, and only the exact budget projection lands on the anchor's energy trajectory. Over $100$ rollouts ($5$ seeds $\times$ $20$ independent trajectories, $K{=}200$): rL2 $0.125/0.236/0.811\pm0.073$, $E/E_0$ $0.946\pm0.004$ (truth $0.9518$), zero crashes, $52$ ms/step---approaching the explicit-step counterfactual and dominating every learned baseline on pointwise error and energy fidelity simultaneously. We report per our own standard that the dissipation envelope's floor is contacted on nearly every step---the constraint is permanently active, which is the architecture's claim, not a defect, but it means the energy figure is jointly produced by anchor, closure and envelope rather than by the network alone.
 
-\textbf{The closure earns its place at the law's boundary}. The counterfactual owes its dominance to four preconditions (Table~\ref{tab:degrade}); where they fail, the learned closure---trained once, against the intact $64^3$ anchor, never retrained---partially or fully closes the gap at deployment. With a mis-specified viscosity ($\nu{\times}2$), the degraded explicit step's end-point energy bias of $-4.3\%$ is \emph{fully rescued} to $+0.3\%$ ($E/E_0$ $0.955$, truth $0.9518$) at unchanged pointwise error; with a $32^3$-truncated anchor, long-horizon rL2 improves by $6\%$ while the over-energisation persists ($0.974$)---under-resolution error is partly invisible to a closure calibrated on fully-resolved anchor errors, an empirical boundary of the cognitive boundary that we report rather than repair. This asymmetry is the honest summary of what learning adds to an executable law: it excels at correcting \emph{parameter} error in a known operator, and is bounded by what its calibration signal can see.
+\textbf{The closure earns its place at the law's boundary}. The counterfactual owes its dominance to four preconditions (\ref{tab:degrade}); where they fail, the learned closure---trained once, against the intact $64^3$ anchor, never retrained---partially or fully closes the gap at deployment. With a mis-specified viscosity ($\nu{\times}2$), the degraded explicit step's end-point energy bias of $-4.3\%$ is \emph{fully rescued} to $+0.3\%$ ($E/E_0$ $0.955$, truth $0.9518$) at unchanged pointwise error; with a $32^3$-truncated anchor, long-horizon rL2 improves by $6\%$ while the over-energisation persists ($0.974$)---under-resolution error is partly invisible to a closure calibrated on fully-resolved anchor errors, an empirical boundary of the cognitive boundary that we report rather than repair. This asymmetry is the honest summary of what learning adds to an executable law: it excels at correcting \emph{parameter} error in a known operator, and is bounded by what its calibration signal can see.
 
 \subsection{The shape of the boundary, not its size}\label{sec:shape}
 
-The geometry gate defines, at every voxel, a trust region for the learned correction---the \emph{cognitive boundary} of the model. Two designs are possible: enlarge the boundary, or reshape it. We tested both, at zero training cost. The shape law is sharpest on the learned-anchor variant, where the closure carries a large share of the update. \textbf{Size}: the scalar trust-radius cap $r_{\max}{=}5.0$ binds on only $0.7\%$ of voxels during 200-step rollouts (the radius self-expands from $0.36$ to $1.74$ as predicted error grows), and enlarging the budget---doubling or tripling the calibration scale, or raising the cap to $10$---changes rL2@200 by less than $0.5\%$. The isotropic ball is not too small. \textbf{Shape}: the correction's reliability is strongly anisotropic in spectral space (the learned field's high-wavenumber content is inflated by an order of magnitude), so we replaced the scalar radius by a per-band trust profile $R(k)$, calibrated from the anchor's own per-band one-step error on 24 training samples---the same self-supervised signal as the scalar path, no labels, no retraining; an outer hard ball $r_{\max}$ preserves Theorem~\ref{thm:gate}. The anisotropic boundary improves rL2 by $35\%$ at $k{=}50$, $27\%$ at $k{=}100$ and $18\%$ at $k{=}200$ with zero crashes. The boundary is also alive in physical space: it concentrates on coherent structures (Pearson $r$ between $R_{\mathrm{eff}}$ and the predicted vorticity magnitude $0.48/0.35/0.32$ at $k{=}25/50/100$; median on-structure $R_{\mathrm{eff}}$ $2.6$--$2.8$ versus background $0.9$--$1.4$) and deforms with them (Fig.~\ref{fig:gate3d}). \textbf{Which boundary binds depends on the anchor}: on the deployed explicit-anchor model the closure carries only $3$--$7\%$ of the update (mean fusion weight), the trust region rarely binds, and band-shaping the closure's correction changes rL2@200 by less than $1\%$---there the binding constraint is not the trust region's shape but the energy budget (EBC, Section~\ref{sec:explicit}). The shape law thus governs the regime where the learned component is load-bearing; as the anchor approaches the true law, budget shape yields to budget energy. Expanding a boundary of the wrong shape achieves nothing; reshaping it is where the accuracy was hiding---and knowing which boundary binds is part of the design manual.
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=\textwidth]{figures/fig_gate3d.pdf}
-\caption{\textbf{The cognitive boundary lives on coherent structures and deforms with them} (learned-anchor variant, where the closure is load-bearing; Section~\ref{sec:shape}). Vorticity-magnitude isosurfaces of the model's own predicted field (pooled p90 threshold, identical across panels) at rollout depths $k{=}25/50/100$ (3D TGV, Re$=6400$, test trajectory), coloured by the per-voxel trust radius $R_{\mathrm{eff}}$ measured on the forward pass (plasma; shared colour scale). The mean trust radius self-expands as predicted error accumulates ($\langle R_{\mathrm{eff}}\rangle = 1.31 \to 1.69 \to 1.75$), and the boundary tracks the vortex filaments (per-panel Pearson $r(|\bm\omega|, R_{\mathrm{eff}}) = 0.48/0.35/0.32$; on-structure median $R_{\mathrm{eff}}$ $2.6$--$2.8$ versus background $0.9$--$1.4$): the region where the model grants itself freedom to correct is the region where the dynamics is being written.}
-\label{fig:gate3d}
-\end{figure}
+The geometry gate defines, at every voxel, a trust region for the learned correction---the \emph{cognitive boundary} of the model. Two designs are possible: enlarge the boundary, or reshape it. We tested both, at zero training cost. The shape law is sharpest on the learned-anchor variant, where the closure carries a large share of the update. \textbf{Size}: the scalar trust-radius cap $r_{\max}{=}5.0$ binds on only $0.7\%$ of voxels during 200-step rollouts (the radius self-expands from $0.36$ to $1.74$ as predicted error grows), and enlarging the budget---doubling or tripling the calibration scale, or raising the cap to $10$---changes rL2@200 by less than $0.5\%$. The isotropic ball is not too small. \textbf{Shape}: the correction's reliability is strongly anisotropic in spectral space (the learned field's high-wavenumber content is inflated by an order of magnitude), so we replaced the scalar radius by a per-band trust profile $R(k)$, calibrated from the anchor's own per-band one-step error on 24 training samples---the same self-supervised signal as the scalar path, no labels, no retraining; an outer hard ball $r_{\max}$ preserves Theorem~\ref{thm:gate}. The anisotropic boundary improves rL2 by $35\%$ at $k{=}50$, $27\%$ at $k{=}100$ and $18\%$ at $k{=}200$ with zero crashes. The boundary is also alive in physical space: it concentrates on coherent structures (Pearson $r$ between $R_{\mathrm{eff}}$ and the predicted vorticity magnitude $0.48/0.35/0.32$ at $k{=}25/50/100$; median on-structure $R_{\mathrm{eff}}$ $2.6$--$2.8$ versus background $0.9$--$1.4$) and deforms with them (\ref{fig:gate3d}). \textbf{Which boundary binds depends on the anchor}: on the deployed explicit-anchor model the closure carries only $3$--$7\%$ of the update (mean fusion weight), the trust region rarely binds, and band-shaping the closure's correction changes rL2@200 by less than $1\%$---there the binding constraint is not the trust region's shape but the energy budget (EBC, Section~\ref{sec:explicit}). The shape law thus governs the regime where the learned component is load-bearing; as the anchor approaches the true law, budget shape yields to budget energy. Expanding a boundary of the wrong shape achieves nothing; reshaping it is where the accuracy was hiding---and knowing which boundary binds is part of the design manual.
 
 \subsection{Component dissection: necessary for the joint profile, not for rL2 alone}\label{sec:ablation}
-
-\begin{table}[htbp]
-\centering\small
-\caption{\textbf{Ablation of the deployed architecture} (3D TGV, $K{=}200$, truth $E/E_0{=}0.9518$). The full model is evaluated under the complete protocol ($5$ seeds $\times$ $20$ trajectories, Table~\ref{tab:main}); ablation arms under a $2$-seed $\times$ $3$-trajectory screen ($6$ rollouts) except the anchor-only arm, which is parameter-free ($3$ rollouts). Every arm keeps the same trained closure and protocol; only the component in the left column is removed or replaced.}
-\label{tab:ablation}
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{@{}lcccc>{\raggedright\arraybackslash}p{5.2cm}@{}}
-\toprule
-Ablation arm & rL2@100 & rL2@200 & $E/E_0$@200 & Crashes & Conclusion \\
-\midrule
-\textbf{Full (anchor$+$gate$+$EBC$+$envelope)} & $0.236$ & $0.811\pm0.073$ & $\bm{0.946\pm0.004}$ & $\bm{0/100}$ & --- \\
-No closure (explicit anchor alone) & $\bm{0.143}$ & $\bm{0.773}$ & $0.947$ & $0/3$ & The law alone is the ideal point---unmatched on its home turf, nothing adapts where it degrades (Table~\ref{tab:degrade}) \\
-No EBC (envelope only) & $0.219$ & $0.769$ & $0.984$ & $0/6$ & Raw closure creates energy ($+9.4\%$ bare); envelope pins the ceiling, decay dynamics destroyed \\
-No envelope (EBC only) & $0.233$ & $\bm{0.737}$ & $0.851$ & $0/6$ & Drift-inflated dissipation over-drains $10.7\%$; the dissipation-rate floor is load-bearing \\
-Learned anchor (in place of explicit) & $1.064$ & $1.135$ & $0.957$\textsuperscript{\dag} & $0/100$ & Anchor choice is the accuracy variable; energy acceptable only under an over-tight envelope (Table~\ref{tab:main}) \\
-\bottomrule
-\end{tabular}
-\end{table}
 
 The ablation profile confirms the role division of Section~\ref{sec:arch} for the deployed architecture: the explicit anchor alone is already the best pointwise predictor on its home turf (rL2@200 $0.773$), so the closure is not there to beat the law but to \emph{follow it where the law degrades} (Section~\ref{sec:explicit}); without EBC the closure's corrections systematically create energy and the envelope is forced to pin the ceiling ($98.5\%$ of steps on seed $0$), destroying the very decay dynamics the envelope was designed to protect; without the envelope's dissipation-rate floor, the closure's drift inflates enstrophy and the explicit anchor dissipates the inflated state too fast ($E/E_0$ $0.851$). Each component's removal destroys exactly one half of the joint profile---pointwise accuracy or energy fidelity---and only the composition recovers both. Judged by rL2 alone at $K{=}200$, the no-envelope arm scores \emph{better} than the full model ($0.737$ vs $0.811$)---at $K{=}200$ all arms are deep in the decorrelated regime, so rL2 there measures phase coincidence, not physical fidelity; the necessity claim concerns the joint profile (zero crashes $\wedge$ energy fidelity $\wedge$ short/mid-horizon accuracy), which no ablated arm reproduces. Stress tests (M3) show that the constrained path absorbs out-of-distribution perturbations of $8\times$ amplitude without propagating an explosion; under injected high-frequency noise the gating signal rises transiently at the injection step and the fusion weight tilts automatically toward the anchor---a structural consequence of geometric gating, not a learned memory. Learned or global gate variants have equal or larger parameter counts and worse stability, so the stability originates from the \textbf{position and form} of the constraint, not from capacity. \textbf{Envelope intervention profile}: 2D in-domain floor $0.8\%$/ceil $0\%$ (silent); Re-OOD $1.7\%$/$3.0\%$ (lightly engaged); decaying-OOD floor $3.8\%$/ceil $95.2\%$ (standing guard); $128^2$ only $0.67\%$---yet exactly covering the trajectories on which the no-envelope arm crashed, the ``rare but critical'' signature of a safety net; the $100\%$ intervention rate on KS $L{=}44$ is a calibration-coverage failure we report as a boundary condition (Limitations). On the 3D deployed model the envelope's floor is contacted on nearly every step---the constraint is permanently active by design, and we report it as such (Section~\ref{sec:explicit}).}44$ is a crutch profile, which we deliberately flag as a boundary (Section~\ref{sec:ood}).
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\textwidth]{figures/fig3_ablation_mechanism.pdf}
-\caption{\textbf{Mechanism dissection and cost}. (a) One fused inference step: anchor $\to$ closure $\to$ geometry gate $\to$ energy-budget projection $\to$ envelope, with the per-step guarantees of Theorems~\ref{thm:div}--\ref{thm:gate}. (b) Component ablation of the deployed explicit-anchor model (Table~\ref{tab:ablation}): rL2@100 versus $E/E_0$ at $K{=}200$ (ours is the star; the dashed line marks the truth $E_{200}{=}0.9518$)---the rL2--energy decoupling is visible directly: removing the envelope improves rL2 while destroying energy fidelity, and removing EBC does the reverse. (c) Cost--accuracy Pareto (marker size $\propto$ parameter count). (d) False versus true stability, from the earlier learned-anchor lineage: the gate90 arm's vorticity PDF at $k{=}200$ is over-dissipative with damped tails ($E/E_0{=}0.56$), while the constrained model matches the truth.}
+\caption{\textbf{Mechanism dissection and cost}. (a) One fused inference step: anchor $\to$ closure $\to$ geometry gate $\to$ energy-budget projection $\to$ envelope, with the per-step guarantees of Theorems~\ref{thm:div}--\ref{thm:gate}. (b) Component ablation of the deployed explicit-anchor model (\ref{tab:ablation}): rL2@100 versus $E/E_0$ at $K{=}200$ (ours is the star; the dashed line marks the truth $E_{200}{=}0.9518$)---the rL2--energy decoupling is visible directly: removing the envelope improves rL2 while destroying energy fidelity, and removing EBC does the reverse. (c) Cost--accuracy Pareto (marker size $\propto$ parameter count). (d) False versus true stability, from the earlier learned-anchor lineage: the gate90 arm's vorticity PDF at $k{=}200$ is over-dissipative with damped tails ($E/E_0{=}0.56$), while the constrained model matches the truth.}
 \label{fig:fig3}
 \end{figure}
 
 \subsection{Cross-system generality}\label{sec:ood}
 
 \emph{System snapshots} (uniform template: physics $\to$ setup $\to$ headline result). \textbf{System A, 3D Taylor--Green (Re$=6400$)}: viscous decay of interacting vortex rings---the test of energy-budget fidelity; $64^3$ pseudo-spectral data, 10 test ICs, $K{=}200$; the anchored model ends at $E/E_0{=}0.93$ against the truth $0.94$, while every baseline either explodes or over-dissipates. \textbf{System B, 2D Kolmogorov}: statistically stationary forced-dissipative turbulence---the test of production--dissipation balance rather than decay; $64^2$ contour-integral ETDRK4 data, 5 in-domain ICs plus Re/regime/resolution OOD; the architectural arm is the only arm with zero crashes in all four scenarios. \textbf{System C, 1D Kuramoto--Sivashinsky}: chaotic spatiotemporal dynamics with an unstable linear symbol---the test of guarantees that cannot rely on a contractive anchor; $L\in\{22,32,44\}$; the anchor arm wins in-domain and at $L{=}22$, and loses honestly at $L{=}44$, where the envelope degenerates into permanent intervention.
-
-\begin{table}[htbp]
-\centering\footnotesize
-\caption{\textbf{Generality and out-of-distribution (OOD) summary} ($K{=}200$). Three arms under the isomorphic protocol with matched parameter counts.}
-\label{tab:ood}
-\setlength{\tabcolsep}{3pt}
-\begin{tabularx}{\linewidth}{@{}l>{\raggedright\arraybackslash}p{2.7cm}*{3}{>{\raggedright\arraybackslash}X}@{}}
-\toprule
-System & Scenario & anchor (architectural) & loss-level & none (data-only) \\
-\midrule
-\multirow{4}{*}{\shortstack[l]{System B\\2D Kolmogorov\\(Re$\approx$1760)}}
- & In-domain (5 ICs) & $E{=}1.10$, \textbf{0 crashes} & $E{=}3.46$, 20\% crashes & $E{=}1.05$, 0 crashes \\
- & Re OOD ($\times2.2$) & $E{=}0.957$, \textbf{0 crashes} & $E{=}3.57$ & $E{=}0.969$ \\
- & Regime OOD (decaying, $f{=}0$) & $\bm{E{=}0.941}$, 1/3 crashes & 2/3 crashes & $E{=}0.227$, over-dissipative \\
- & Resolution OOD ($64^2{\to}128^2$) & rL2${=}1.299$, \textbf{0 crashes} & 1/3 crashes & rL2${=}1.356$ \\
-\midrule
-\multirow{3}{*}{\shortstack[l]{System C\\1D KS\\(chaotic)}}
- & In-domain $L{=}32$ (5 ICs) & $\bm{\mathrm{rL2}}{=}0.015$, 0 crashes & rL2${=}0.429$ & rL2${=}1.178$ \\
- & Length OOD $L{=}22$ & $\bm{\mathrm{rL2}}{=}0.124$, $E{=}1.005$ & rL2${=}1.202$ & rL2${=}1.049$ \\
- & Length OOD $L{=}44$ & 0 crashes (envelope 100\% active) & $\bm{\mathrm{rL2}}{=}0.870$ & rL2${=}1.180$ \\
-\midrule
-System A & Re OOD (3200/1000) & \multicolumn{3}{l}{Accuracy essentially in-domain (zero training transfer)} \\
-(3D TGV backbone) & Regime OOD (JHTDB HIT) & \multicolumn{3}{l}{Honest failure: energy collapse ($E/E_0{=}0.11$ at step 1); see Discussion} \\
-\bottomrule
-\end{tabularx}
-\end{table}
 
 Three regularities hold across systems (Fig.~\ref{fig:fig4}). \textbf{(i) The inference-path envelope is the most robustly transferable component}: silent in-domain ($<1\%$), it activates precisely at OOD boundaries and prevents crashes (KS $L{=}44$: $3/3{\to}0/3$; 2D decaying: $3/3{\to}1/3$ with $E/E_0$ pulled back from $7.7$ to $0.94$; $128^2$: $1/3{\to}0/3$), with zero recalibration across systems and resolutions. \textbf{(ii) Loss-level physics fails consistently}: on neither external system does it improve long-horizon stability (2D in-domain: $3.46\times$ energy explosion plus 20\% crashes; KS in-domain: rL2 worse by $29\times$)---direct negative evidence for the core claim. \textbf{(iii) Boundaries are honestly marked}: KS $L{=}44$ is the only scenario where loss-level physics wins (the anchor's calibration does not cover the larger attractor and the envelope degenerates into permanent intervention); the JHTDB 3D regime-OOD collapses energetically. These define the method's boundary: the envelope is a safety net, not a substitute for an anchor calibrated to cover the target attractor.
 
@@ -452,7 +337,7 @@ The rL2--energy decoupling (Fig.~\ref{fig:fig3}b) shows that ranking long-horizo
 
 \subsection{Outlook}
 
-(i) \textbf{Boundary mapping}: push the principle to the most complex settings (3D realistic turbulence, larger attractor dimensions) and chart the coverage and failure modes of anchor calibration---this consolidates the methodological claim more than adding yet another success case. (ii) \textbf{A PhysicsSpec catalogue}: our three systems demonstrate construction paradigms for the three families of hard-codable physics---conservation laws, linear operators, dissipation inequalities; formalising the selection criterion of \emph{which physics deserves a place on the inference path} would upgrade a point method into a design manual. (iii) \textbf{Closing the indicator loop}: feeding the discrepancy signal into adaptive time-stepping or active-learning data acquisition is a natural extension, but cross-regime calibration must be solved first. (iv) \textbf{Shaping the cognitive boundary}: hard-carrying known physics deliberately restricts what the learned residual may express---the gated trust region defines a \emph{cognitive boundary} of the surrogate. Our experiments answer the first design question: the boundary's \emph{shape}, not its size, is the binding constraint---uniformly enlarging an isotropic trust ball changes nothing ($<0.5\%$), while an anisotropic per-band trust profile, calibrated self-supervised from the anchor's own error, cuts long-horizon error by $18$--$35\%$ at zero training cost (Section~\ref{sec:shape}). State-dependent, direction-dependent boundaries---the deformation field of Fig.~\ref{fig:gate3d} made trainable---are the next step. (v) \textbf{The law as the anchor}: our counterfactual (Section~\ref{sec:explicit}) shows the explicit operator is the best anchor wherever its preconditions hold, and a learned anchor is a drift-prone approximation of it. The endgame architecture is therefore a hybrid: the law written exactly where it is known, a learned closure where it is not (missing forcing, under-resolution, non-periodic real data), and a shaped, instrumented boundary between them. How large the closure's share can grow before the stability guarantees erode is, in our view, the central open problem for anchored surrogates.
+(i) \textbf{Boundary mapping}: push the principle to the most complex settings (3D realistic turbulence, larger attractor dimensions) and chart the coverage and failure modes of anchor calibration---this consolidates the methodological claim more than adding yet another success case. (ii) \textbf{A PhysicsSpec catalogue}: our three systems demonstrate construction paradigms for the three families of hard-codable physics---conservation laws, linear operators, dissipation inequalities; formalising the selection criterion of \emph{which physics deserves a place on the inference path} would upgrade a point method into a design manual. (iii) \textbf{Closing the indicator loop}: feeding the discrepancy signal into adaptive time-stepping or active-learning data acquisition is a natural extension, but cross-regime calibration must be solved first. (iv) \textbf{Shaping the cognitive boundary}: hard-carrying known physics deliberately restricts what the learned residual may express---the gated trust region defines a \emph{cognitive boundary} of the surrogate. Our experiments answer the first design question: the boundary's \emph{shape}, not its size, is the binding constraint---uniformly enlarging an isotropic trust ball changes nothing ($<0.5\%$), while an anisotropic per-band trust profile, calibrated self-supervised from the anchor's own error, cuts long-horizon error by $18$--$35\%$ at zero training cost (Section~\ref{sec:shape}). State-dependent, direction-dependent boundaries---the deformation field of \ref{fig:gate3d} made trainable---are the next step. (v) \textbf{The law as the anchor}: our counterfactual (Section~\ref{sec:explicit}) shows the explicit operator is the best anchor wherever its preconditions hold, and a learned anchor is a drift-prone approximation of it. The endgame architecture is therefore a hybrid: the law written exactly where it is known, a learned closure where it is not (missing forcing, under-resolution, non-periodic real data), and a shaped, instrumented boundary between them. How large the closure's share can grow before the stability guarantees erode is, in our view, the central open problem for anchored surrogates.
 
 \subsection{Answers to the editor's three questions}
 
@@ -469,28 +354,6 @@ We asked a positional question: in long-horizon neural PDE prediction, where sho
 \textbf{Data archaeology}. In the course of this study we identified and discarded two batches of legacy data: an old KS dataset that satisfies a damped variant of the equation (monotonically decaying energy, no chaos), and an old System-B dataset in which slices of a 3D field were passed off as 2D (divergence ratio $\approx1.0$, vorticity-equation residual $2$--$24$). ``Zero-crash'' conclusions once drawn on these datasets do not hold under strict criteria. Verification scripts and the deprecation record are released with the code (SI-C).
 
 \textbf{Models and training}. \emph{3D backbone}: spectral-split hard side (Leray projection~\eqref{eq:leray} $+$ gate truncation~\eqref{eq:fusion}, both active in the training forward pass and gradient-permeable) $+$ soft branch (3-expert spectral-convolution MoE, trained jointly with the hard side) $+$ zero-parameter calibration gate (Eqs.~\eqref{eq:gate}--\eqref{eq:fusion}) $+$ memory-bank FiLM (Supplementary Information); the dissipation envelope~\eqref{eq:env-decay} is an inference-path safety net applied identically at evaluation, deliberately never seen during training (Section~\ref{sec:arch}); $5.10$M parameters; 100 epochs, AdamW $10^{-4}$ with cosine annealing, rollout$=3$ curriculum (Eq.~\eqref{eq:loss}) with scheduled sampling, one RTX 5070 Laptop GPU (8 GB), about 700 s/epoch. The hard-side bottleneck autoencoder uses spectral normalisation as a standard Lipschitz stabiliser (not required by any theorem; Corollary~\ref{cor:bounded} rests only on the envelope and the boundedness of forcing/grid wavenumbers). \emph{2D/1D}: the anchor is the exact linear propagator (Eqs.~\eqref{eq:ks-symbol}--\eqref{eq:phi1}; the PhysicsSpec is read from the data attributes, never hard-coded), the soft branch is an FNO2d/FNO1d (modes 12/16, width 32/64), and the three arms are parameter-matched (2D $1.19$M, 1D $0.29$M); 50 epochs with the same rollout curriculum; the full single-system experiment (including data generation) takes $<1$ hour. \emph{Implementation}: all physical operators are spectral; wavenumber grids and normalisation statistics are registered as buffers and saved with the checkpoint; on the $64^2{\to}128^2$ transfer the grid is rebuilt ($\lambda(\bm{k})$ is grid-independent---the structural basis of lossless resolution transfer); the envelope's per-step $\Delta t$ is passed from data-timestamp differences; the per-step composition order (explicit anchor $\rightarrow$ closure prediction $\rightarrow$ gate truncation $\rightarrow$ FiLM modulation $\rightarrow$ divergence projection $\rightarrow$ energy-budget closure $\rightarrow$ dissipation envelope) is identical across the equations, the figures and the released code (pseudocode in SI-E); the gate trust radius is capped at the pre-deployment constant $R_{\max}=5.0$ (normalised units; Eq.~\eqref{eq:trunc}), which binds on only $0.7\%$ of voxels over 200-step deployment rollouts (Section~\ref{sec:shape})---the cap is a safety bound, not an active mechanism. \emph{Statistics}: mean$\pm$std across ICs; per-IC raw data released with the code. \emph{Plotting}: all figures are reproduced from the result JSONs by \texttt{scripts/make\_figures\_nc.py} in one command.
-
-\begin{table}[htbp]
-\centering\small
-\caption{\textbf{Training and evaluation hyperparameters} (isomorphic protocol across the three systems; the only cross-arm variable is where the physics is placed).}
-\label{tab:hyper}
-\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{2.9cm}*{3}{>{\raggedright\arraybackslash}X}@{}}
-\toprule
-Item & 3D TGV (System A) & 2D Kolmogorov (B) & 1D KS (C) \\
-\midrule
-Grid / domain & $64^3$, $(2\pi)^3$ & $64^2$ (OOD: $128^2$), $(2\pi)^2$ & $64$, $[0,L)$, $L\in\{22,32,44\}$ \\
-Viscosity / control & $\nu=1/6400$ & $\nu=2{\times}10^{-3}$, $\alpha=0.1$, $k_f=4$ & standard KS (Eq.~\eqref{eq:ks-symbol}) \\
-Frame step $\Delta t$ & $0.049$ (mean, non-uniform) & $0.165$ & $0.01$ \\
-Epochs / batch & 100 / 1 (accum.\ 4) & 50 / 16 & 50 / 64 \\
-Optimiser / LR & AdamW $10^{-4}$ cosine & AdamW $10^{-3}$ cosine & AdamW $10^{-3}$ cosine \\
-Rollout curriculum & \multicolumn{3}{c}{$R{=}3$, $\gamma_r{=}0.9$ (Eq.~\eqref{eq:loss})} \\
-Envelope constants $c_d$/$c_p$ & $1.218$ / --- (decay) & $0.903$ / $0.527$ & $0.130$ / $0.130$ \\
-Evaluation ICs & 20 (100 rollouts for the deployed model) & 5 (OOD 3) & 5 (OOD 3) \\
-Crash criteria & \multicolumn{3}{c}{Table~\ref{tab:crash}, frozen filling} \\
-Hardware & \multicolumn{3}{c}{Single RTX 5070 Laptop GPU (8 GB)} \\
-\bottomrule
-\end{tabularx}
-\end{table}
 
 \section*{Data availability}
 
@@ -597,6 +460,157 @@ The full codebase is available at \url{https://github.com/chenyuze1234/rcln-pde}
 \bibitem{zanardi2023adaptive} Zanardi, I., Venturi, S. \& Panesi, M. Adaptive physics-informed neural operator for coarse-grained non-equilibrium flows. \emph{Sci. Rep.} \textbf{13}, 15497 (2023).
 
 \end{thebibliography}
+
+\clearpage
+
+\section*{Extended Data}
+
+\setcounter{table}{0}
+
+\renewcommand{\thetable}{Extended Data Table \arabic{table}}
+
+\setcounter{figure}{0}
+
+\renewcommand{\thefigure}{Extended Data Fig. \arabic{figure}}
+
+
+
+\begin{table}[htbp]
+\centering\small
+\caption{\textbf{Crash criteria and rationale}. Post-crash metrics are frozen-filled to step $K$ to avoid survivorship bias.}
+\label{tab:crash}
+\begin{tabular}{lll}
+\toprule
+Criterion & Threshold & Rationale \\
+\midrule
+Non-finite value & NaN/Inf & Numerical blow-up \\
+Relative $L_2$ error & $>5$ & Field corruption \\
+Energy ratio $E/E_0$ & $>5$ & Energy explosion \\
+Post-crash handling & Frozen filling & Avoids survivorship bias \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering\small
+\caption{\textbf{Main long-horizon benchmark} (3D TGV, Re$=6400$, $K{=}200$, $20$ independent test trajectories, mean$\pm$std). Ours, FNO and the anchored-FNO ablation are evaluated under $5$ seeds ($100$ rollouts); the remaining arms under one seed ($20$ rollouts). Truth: $E/E_0$ at $K{=}200$ is $0.9518$. All models are retrained under the identical protocol (Section~\ref{sec:setup}); the only experimental variable is where the physics is placed.}
+\label{tab:main}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lccccccc@{}}
+\toprule
+Model & Params & rL2@50 & rL2@100 & rL2@200 & $E/E_0$@200 & Crashes & ms/step \\
+\midrule
+\textbf{RCLN (ours)} & 5.10M & $\bm{0.125}$ & $\bm{0.236}$ & $\bm{0.811\pm0.073}$ & $\bm{0.946\pm0.004}$ & $\bm{0/100}$ & 51.9 \\
+FNO (official) & 6.70M & $0.934$ & $1.693$\textsuperscript{*} & $1.693$\textsuperscript{*} & $5.104$ & $100/100$ & 58 \\
+U-Net & 6.32M & $0.369$ & $0.805$ & $1.195$ & $0.625$ & $0/20$ & 42 \\
+DPOT (recent) & 10.82M & $1.116$ & $1.381$ & $1.447$ & $1.533$ & $0/20$ & 16 \\
+FNO$+$PhysReg & 6.70M & $0.392$ & $2.196$\textsuperscript{*} & $2.196$\textsuperscript{*} & $5.076$ & $20/20$ & 70 \\
+PhysicsCorrect (approx.) & 6.70M & $0.266$ & $0.503$ & $0.962$ & $0.914$ & $0/20$ & 74 \\
+FNO$+$post-hoc envelope & 6.70M & $0.293$ & $0.946$ & $1.385$ & $0.997$ & $0/20$ & 74 \\
+\midrule
+RCLN w/ learned anchor (ablation) & 5.10M & $0.982$ & $1.064$ & $1.135\pm0.037$ & $0.957\pm0.005$\textsuperscript{\dag} & $0/100$ & 64.9 \\
+\emph{Explicit spectral step (counterfactual)} & 0 & $0.057$ & $0.143$ & $0.773$ & $0.947$ & $0/3$ & --- \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}
+\begin{minipage}{\linewidth}\footnotesize
+\textsuperscript{*}Frozen-filled after crash (post-crash metrics are held at the crash-step value to avoid survivorship bias; FNO's rL2@50 is measured pre-crash). Bold rL2: best among non-crashing learned models; bold $E/E_0$ and crash count: closest to the truth $0.9518$ and largest no-crash sample. \textsuperscript{\dag}The learned-anchor ablation (same backbone and protocol, learned low-wavenumber anchor in place of the explicit step) is shown under an over-tight envelope constant $c_d{=}0.1$ that the truth itself would violate step-by-step; under the properly calibrated $c_d{=}1.218$ its energy over-drains to $0.80$---i.e.\ its acceptable end-point energy is envelope-imposed rather than model-emergent, unlike the explicit-anchor row whose envelope the truth satisfies. The final row is not a learned model but the explicit pseudo-spectral step of the governing equations (RK4, one substep per frame, $3$ test trajectories)---a deliberately uncomfortable counterfactual analysed in Section~\ref{sec:explicit}: with fully known physics at matched resolution it dominates every learned row, which is precisely why the learned components of our architecture target the regimes where such a step degrades or is unavailable. $0/100$ crashes correspond to a Wilson 95\% upper bound of $0.04$ per trajectory ($0/20$: $0.16$). The last learned row is a position control: the \emph{same} envelope mechanism applied as pure post-processing on the trained FNO---crashes are capped, but $82\%$ of steps hit the ceiling, the decay dynamics is destroyed ($E/E_0$ pinned at $0.997$ against the truth $0.952$), and rL2@200 degrades relative to the embedded position. The approximate PhysicsCorrect reproduction violates the one-sided dissipation budget on $33\%$ of steps (energy re-created in a decaying flow); its end-point energy $0.914$ results from partial cancellation of an over-damped first half ($0.727$ at $k{=}134$) by subsequent energy re-creation.
+\end{minipage}
+\end{table}
+
+\begin{table}[htbp]
+\centering\small
+\caption{\textbf{Precondition boundary of the explicit spectral step} (three test trajectories, $K{=}200$, $\nu{=}1/6400$; the reference row reproduces the counterfactual of Table~\ref{tab:main}). The explicit step dominates only while all four preconditions hold; each violated precondition converts its strength into a distinct failure mode. rL2 of crashed arms is not defined (NaN).}
+\label{tab:degrade}
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{3.2cm}*{4}{>{\raggedright\arraybackslash}X}>{\raggedright\arraybackslash}p{1.1cm}@{}}
+\toprule
+Precondition violated & rL2@50 & rL2@100 & rL2@200 & $E/E_0$@200 & crash \\
+\midrule
+\emph{none (reference)} & 0.057 & 0.143 & 0.773 & 0.947 & 0/3 \\
+time step ($\Delta t{\times}4$) & --- & --- & --- & --- & 3/3 ($k{\approx}40$) \\
+time step ($\Delta t{\times}8$) & --- & --- & --- & --- & 3/3 ($k{=}16$) \\
+resolution ($32^3$ trunc.) & 0.072 & 0.194 & 0.918 & 0.968 & 0/3 \\
+parameter ($\nu{\times}2$) & 0.049 & 0.118 & 0.683 & 0.911 & 0/3 \\
+parameter ($\nu{\times}0.5$) & 0.062 & 0.159 & 0.828 & 0.973 & 0/3 \\
+periodicity (JHTDB cutout) & \multicolumn{4}{l}{NaN within 2 steps (Gibbs ringing)} & 3/3 \\
+\bottomrule
+\end{tabularx}
+\\[2pt]
+{\footnotesize Truth $E/E_0$@200 $=0.9518$. $\Delta t{\times}4$/$\times8$: one RK4 step per 4/8 frames ($4\times$/$8\times$ cheaper than reference). $32^3$: spectral truncation, rollout at $32^3$, zero-padded back to $64^3$ for scoring. The $\nu{\times}2$ row's lower rL2 is an over-damping artefact, not better physics (energy biased $-4.3\%$).}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_gate3d.pdf}
+\caption{\textbf{The cognitive boundary lives on coherent structures and deforms with them} (learned-anchor variant, where the closure is load-bearing; Section~\ref{sec:shape}). Vorticity-magnitude isosurfaces of the model's own predicted field (pooled p90 threshold, identical across panels) at rollout depths $k{=}25/50/100$ (3D TGV, Re$=6400$, test trajectory), coloured by the per-voxel trust radius $R_{\mathrm{eff}}$ measured on the forward pass (plasma; shared colour scale). The mean trust radius self-expands as predicted error accumulates ($\langle R_{\mathrm{eff}}\rangle = 1.31 \to 1.69 \to 1.75$), and the boundary tracks the vortex filaments (per-panel Pearson $r(|\bm\omega|, R_{\mathrm{eff}}) = 0.48/0.35/0.32$; on-structure median $R_{\mathrm{eff}}$ $2.6$--$2.8$ versus background $0.9$--$1.4$): the region where the model grants itself freedom to correct is the region where the dynamics is being written.}
+\label{fig:gate3d}
+\end{figure}
+
+\begin{table}[htbp]
+\centering\small
+\caption{\textbf{Ablation of the deployed architecture} (3D TGV, $K{=}200$, truth $E/E_0{=}0.9518$). The full model is evaluated under the complete protocol ($5$ seeds $\times$ $20$ trajectories, Table~\ref{tab:main}); ablation arms under a $2$-seed $\times$ $3$-trajectory screen ($6$ rollouts) except the anchor-only arm, which is parameter-free ($3$ rollouts). Every arm keeps the same trained closure and protocol; only the component in the left column is removed or replaced.}
+\label{tab:ablation}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lcccc>{\raggedright\arraybackslash}p{5.2cm}@{}}
+\toprule
+Ablation arm & rL2@100 & rL2@200 & $E/E_0$@200 & Crashes & Conclusion \\
+\midrule
+\textbf{Full (anchor$+$gate$+$EBC$+$envelope)} & $0.236$ & $0.811\pm0.073$ & $\bm{0.946\pm0.004}$ & $\bm{0/100}$ & --- \\
+No closure (explicit anchor alone) & $\bm{0.143}$ & $\bm{0.773}$ & $0.947$ & $0/3$ & The law alone is the ideal point---unmatched on its home turf, nothing adapts where it degrades (Table~\ref{tab:degrade}) \\
+No EBC (envelope only) & $0.219$ & $0.769$ & $0.984$ & $0/6$ & Raw closure creates energy ($+9.4\%$ bare); envelope pins the ceiling, decay dynamics destroyed \\
+No envelope (EBC only) & $0.233$ & $\bm{0.737}$ & $0.851$ & $0/6$ & Drift-inflated dissipation over-drains $10.7\%$; the dissipation-rate floor is load-bearing \\
+Learned anchor (in place of explicit) & $1.064$ & $1.135$ & $0.957$\textsuperscript{\dag} & $0/100$ & Anchor choice is the accuracy variable; energy acceptable only under an over-tight envelope (Table~\ref{tab:main}) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering\footnotesize
+\caption{\textbf{Generality and out-of-distribution (OOD) summary} ($K{=}200$). Three arms under the isomorphic protocol with matched parameter counts.}
+\label{tab:ood}
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\linewidth}{@{}l>{\raggedright\arraybackslash}p{2.7cm}*{3}{>{\raggedright\arraybackslash}X}@{}}
+\toprule
+System & Scenario & anchor (architectural) & loss-level & none (data-only) \\
+\midrule
+\multirow{4}{*}{\shortstack[l]{System B\\2D Kolmogorov\\(Re$\approx$1760)}}
+ & In-domain (5 ICs) & $E{=}1.10$, \textbf{0 crashes} & $E{=}3.46$, 20\% crashes & $E{=}1.05$, 0 crashes \\
+ & Re OOD ($\times2.2$) & $E{=}0.957$, \textbf{0 crashes} & $E{=}3.57$ & $E{=}0.969$ \\
+ & Regime OOD (decaying, $f{=}0$) & $\bm{E{=}0.941}$, 1/3 crashes & 2/3 crashes & $E{=}0.227$, over-dissipative \\
+ & Resolution OOD ($64^2{\to}128^2$) & rL2${=}1.299$, \textbf{0 crashes} & 1/3 crashes & rL2${=}1.356$ \\
+\midrule
+\multirow{3}{*}{\shortstack[l]{System C\\1D KS\\(chaotic)}}
+ & In-domain $L{=}32$ (5 ICs) & $\bm{\mathrm{rL2}}{=}0.015$, 0 crashes & rL2${=}0.429$ & rL2${=}1.178$ \\
+ & Length OOD $L{=}22$ & $\bm{\mathrm{rL2}}{=}0.124$, $E{=}1.005$ & rL2${=}1.202$ & rL2${=}1.049$ \\
+ & Length OOD $L{=}44$ & 0 crashes (envelope 100\% active) & $\bm{\mathrm{rL2}}{=}0.870$ & rL2${=}1.180$ \\
+\midrule
+System A & Re OOD (3200/1000) & \multicolumn{3}{l}{Accuracy essentially in-domain (zero training transfer)} \\
+(3D TGV backbone) & Regime OOD (JHTDB HIT) & \multicolumn{3}{l}{Honest failure: energy collapse ($E/E_0{=}0.11$ at step 1); see Discussion} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[htbp]
+\centering\small
+\caption{\textbf{Training and evaluation hyperparameters} (isomorphic protocol across the three systems; the only cross-arm variable is where the physics is placed).}
+\label{tab:hyper}
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{2.9cm}*{3}{>{\raggedright\arraybackslash}X}@{}}
+\toprule
+Item & 3D TGV (System A) & 2D Kolmogorov (B) & 1D KS (C) \\
+\midrule
+Grid / domain & $64^3$, $(2\pi)^3$ & $64^2$ (OOD: $128^2$), $(2\pi)^2$ & $64$, $[0,L)$, $L\in\{22,32,44\}$ \\
+Viscosity / control & $\nu=1/6400$ & $\nu=2{\times}10^{-3}$, $\alpha=0.1$, $k_f=4$ & standard KS (Eq.~\eqref{eq:ks-symbol}) \\
+Frame step $\Delta t$ & $0.049$ (mean, non-uniform) & $0.165$ & $0.01$ \\
+Epochs / batch & 100 / 1 (accum.\ 4) & 50 / 16 & 50 / 64 \\
+Optimiser / LR & AdamW $10^{-4}$ cosine & AdamW $10^{-3}$ cosine & AdamW $10^{-3}$ cosine \\
+Rollout curriculum & \multicolumn{3}{c}{$R{=}3$, $\gamma_r{=}0.9$ (Eq.~\eqref{eq:loss})} \\
+Envelope constants $c_d$/$c_p$ & $1.218$ / --- (decay) & $0.903$ / $0.527$ & $0.130$ / $0.130$ \\
+Evaluation ICs & 20 (100 rollouts for the deployed model) & 5 (OOD 3) & 5 (OOD 3) \\
+Crash criteria & \multicolumn{3}{c}{Table~\ref{tab:crash}, frozen filling} \\
+Hardware & \multicolumn{3}{c}{Single RTX 5070 Laptop GPU (8 GB)} \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
 \section*{Acknowledgements}
 The authors received no specific funding for this work.
