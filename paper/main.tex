@@ -494,11 +494,11 @@ Post-crash handling & Frozen filling & Avoids survivorship bias \\
 \end{table}
 
 \begin{table}[htbp]
-\centering\small
+\centering\footnotesize
 \caption{\textbf{Main long-horizon benchmark} (3D TGV, Re$=6400$, $K{=}200$, $20$ independent test trajectories, mean$\pm$std). Ours, FNO and the anchored-FNO ablation are evaluated under $5$ seeds ($100$ rollouts); the remaining arms under one seed ($20$ rollouts). Truth: $E/E_0$ at $K{=}200$ is $0.9518$. All models are retrained under the identical protocol (Section~\ref{sec:setup}); the only experimental variable is where the physics is placed.}
 \label{tab:main}
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{@{}lccccccc@{}}
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{2.9cm}ccccccc@{}}
 \toprule
 Model & Params & rL2@50 & rL2@100 & rL2@200 & $E/E_0$@200 & Crashes & ms/step \\
 \midrule
@@ -508,10 +508,10 @@ U-Net & 6.32M & $0.369$ & $0.805$ & $1.195$ & $0.625$ & $0/20$ & 42 \\
 DPOT (recent) & 10.82M & $1.116$ & $1.381$ & $1.447$ & $1.533$ & $0/20$ & 16 \\
 FNO$+$PhysReg & 6.70M & $0.392$ & $2.196$\textsuperscript{*} & $2.196$\textsuperscript{*} & $5.076$ & $20/20$ & 70 \\
 PhysicsCorrect (approx.) & 6.70M & $0.266$ & $0.503$ & $0.962$ & $0.914$ & $0/20$ & 74 \\
-FNO$+$post-hoc envelope & 6.70M & $0.293$ & $0.946$ & $1.385$ & $0.997$ & $0/20$ & 74 \\
+FNO$+$post-hoc env. & 6.70M & $0.293$ & $0.946$ & $1.385$ & $0.997$ & $0/20$ & 74 \\
 \midrule
-RCLN w/ learned anchor (ablation) & 5.10M & $0.982$ & $1.064$ & $1.135\pm0.037$ & $0.957\pm0.005$\textsuperscript{\dag} & $0/100$ & 64.9 \\
-\emph{Explicit spectral step (counterfactual)} & 0 & $0.057$ & $0.143$ & $0.773$ & $0.947$ & $0/3$ & --- \\
+RCLN w/ learned anchor & 5.10M & $0.982$ & $1.064$ & $1.135\pm0.037$ & $0.957\pm0.005$\textsuperscript{\dag} & $0/100$ & 64.9 \\
+\emph{Explicit step (counterfactual)} & 0 & $0.057$ & $0.143$ & $0.773$ & $0.947$ & $0/3$ & --- \\
 \bottomrule
 \end{tabular}
 \vspace{2pt}
@@ -549,15 +549,15 @@ periodicity (JHTDB cutout) & \multicolumn{4}{l}{NaN within 2 steps (Gibbs ringin
 \end{figure}
 
 \begin{table}[htbp]
-\centering\small
+\centering\footnotesize
 \caption{\textbf{Ablation of the deployed architecture} (3D TGV, $K{=}200$, truth $E/E_0{=}0.9518$). The full model is evaluated under the complete protocol ($5$ seeds $\times$ $20$ trajectories, Table~\ref{tab:main}); ablation arms under a $2$-seed $\times$ $3$-trajectory screen ($6$ rollouts) except the anchor-only arm, which is parameter-free ($3$ rollouts). Every arm keeps the same trained closure and protocol; only the component in the left column is removed or replaced.}
 \label{tab:ablation}
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{@{}lcccc>{\raggedright\arraybackslash}p{5.2cm}@{}}
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{2.7cm}cccc>{\raggedright\arraybackslash}p{4.7cm}@{}}
 \toprule
 Ablation arm & rL2@100 & rL2@200 & $E/E_0$@200 & Crashes & Conclusion \\
 \midrule
-\textbf{Full (anchor$+$gate$+$EBC$+$envelope)} & $0.236$ & $0.811\pm0.073$ & $\bm{0.946\pm0.004}$ & $\bm{0/100}$ & --- \\
+\textbf{Full (anchor$+$gate$+$EBC$+$env.)} & $0.236$ & $0.811\pm0.073$ & $\bm{0.946\pm0.004}$ & $\bm{0/100}$ & --- \\
 No closure (explicit anchor alone) & $\bm{0.143}$ & $\bm{0.773}$ & $0.947$ & $0/3$ & The law alone is the ideal point---unmatched on its home turf, nothing adapts where it degrades (Table~\ref{tab:degrade}) \\
 No EBC (envelope only) & $0.219$ & $0.769$ & $0.984$ & $0/6$ & Raw closure creates energy ($+9.4\%$ bare); envelope pins the ceiling, decay dynamics destroyed \\
 No envelope (EBC only) & $0.233$ & $\bm{0.737}$ & $0.851$ & $0/6$ & Drift-inflated dissipation over-drains $10.7\%$; the dissipation-rate floor is load-bearing \\
